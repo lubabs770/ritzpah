@@ -43,18 +43,24 @@ shader** — the compositor stops idling. On a laptop, expect the battery hit.
 (`misc.vfr` was the other half of this trick in older Hyprland; it was removed
 by 0.56, so `damage_tracking` is the only knob now.)
 
-### Known rough edge: screenshots
+### Screenshots can stall while the melt is running
 
-While developing this theme on Hyprland 0.56.2, `grim` began hanging forever —
-the compositor accepted the screencopy request and never produced a frame for
-it. It did not clear when the shader was switched off, when blur was disabled,
-when damage tracking went back to `2`, or on theme switch; only restarting
-Hyprland clears it.
+On Hyprland 0.56.2, a `grim` capture taken during heavy theme reloading stalled
+for several minutes instead of returning. While it was stalled, every later
+screenshot queued behind it and appeared to hang too — screencopy serialises, so
+one stuck request looks exactly like a dead compositor.
 
-I could not pin it to a specific option — screenshots worked fine with both the
-shader and `damage_tracking = 0` active, and wedged later during repeated theme
-reloads. Treat it as suspected but unproven. If screenshots stop working,
-restart Hyprland.
+It cleared on its own once the stalled capture finally completed. No restart was
+needed, and captures went back to taking about a second. If screenshots seem
+dead under this theme, check for a stuck capture before assuming worse:
+
+```bash
+pgrep -a grim     # kill any leftovers, then try again
+```
+
+Cause unconfirmed. Full-damage rendering means every screencopy grabs a
+freshly-rendered full frame, which is more work than usual, but that alone does
+not explain a multi-minute stall.
 
 ## The rest of it
 
