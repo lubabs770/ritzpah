@@ -1,0 +1,36 @@
+# Ego Death - no colour gets to be the main one
+mode = "dark"
+
+accent = "#ff00d4"
+selection = "#6a00b8"
+muted = "#8c4de0"
+
+background = "#0a0012"
+dark_background = "#06000c"
+darker_background = "#030006"
+lighter_background = "#2a0055"
+
+foreground = "#f6ecff"
+dark_foreground = "#a878ff"
+light_foreground = "#e0ccff"
+bright_foreground = "#ffffff"
+
+red = "#ff0044"
+yellow = "#ffe800"
+orange = "#ff7a00"
+green = "#00ff6a"
+cyan = "#00f5ff"
+blue = "#3d5bff"
+magenta = "#ff00d4"
+brown = "#d4437a"
+
+bright_red = "#ff5c85"
+bright_yellow = "#fff95c"
+bright_green = "#5cffa8"
+bright_cyan = "#7cfaff"
+bright_blue = "#8a9cff"
+bright_magenta = "#ff6ce6"
+
+# Eight stops, the whole wheel. hyprland.lua spins it.
+hyprland_active_border = "rgba(ff0044ff) rgba(ff7a00ff) rgba(ffe800ff) rgba(00ff6aff) rgba(00f5ffff) rgba(3d5bffff) rgba(ff00d4ff) rgba(ff0044ff) 45deg"
+hyprland_inactive_border = "rgba(2a0055cc) rgba(6a00b8cc) 45deg"

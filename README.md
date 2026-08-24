@@ -27,14 +27,30 @@ spinning. [Full write-up](themes/acid-vortex/README.md).
 
 ![Palette](docs/palette.png)
 
+### Ego Death
+
+Loads a GLSL shader over the whole compositor output, so the desktop itself
+melts and hue-cycles in real time — windows, bar, cursor and all. Costs battery
+and most of your ability to read small text. [Full
+write-up](themes/ego-death/README.md).
+
+![Ego Death](themes/ego-death/preview.png)
+
+![Palette](docs/ego-death-palette.png)
+
 ## Repo layout
 
 ```
-install                  installer for the whole collection
-themes/<name>/           one theme, in Omarchy's own layout
-tools/make-backgrounds   regenerates Acid Vortex's wallpapers from scratch
-docs/                    preview images used by the READMEs
+install                            installer for the whole collection
+themes/<name>/                     one theme, in Omarchy's own layout
+tools/make-backgrounds             regenerates Acid Vortex's wallpapers
+tools/make-backgrounds-ego-death   regenerates Ego Death's wallpapers
+docs/                              preview images used by the READMEs
 ```
+
+No wallpaper here was downloaded. Both generators build every image from plasma
+noise and gradients with ImageMagick, so the recipes ship instead of the
+provenance questions.
 
 ## Adding a theme
 
@@ -50,7 +66,13 @@ Everything else is opt-in:
 | `shell.<section>.toml` | overrides one section of the generated `shell.toml` |
 | `icons.theme` | one line, a Yaru variant |
 | `backgrounds/` | wallpapers, cycled by `omarchy theme bg next` |
+| `ghostty.conf` | replaces the generated one (restate the whole palette if you ship this) |
 | `preview.png` | what shows up in this README |
+
+A theme's `hyprland.lua` is loaded *before* `~/.config/hypr/looknfeel.lua`, so
+anything you set there wins over the theme. Gaps and per-window opacity
+generally live in your personal config; borders, rounding, blur, shadow and
+animations are the theme's to own.
 
 Shipping `shell.<section>.toml` files is safer than shipping a whole
 `shell.toml` — Omarchy merges each one into the generated file and leaves the
