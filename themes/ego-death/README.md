@@ -6,6 +6,33 @@ Nothing is anything. Everything is something.
 
 ![Palette](../../docs/ego-death-palette.png)
 
+## What it actually looks like
+
+The wallpaper above is just a wallpaper. This is the shader, captured live off
+the compositor.
+
+The screen below is a synthetic demo — a terminal printing nothing but rules,
+box drawing, a pangram and some colour bars, specifically so there is a
+straight line to compare against:
+
+![Distortion](../../docs/ego-death-distortion.png)
+
+Note what is happening to the horizontal rules, and that every glyph has a red
+copy and a blue copy pulling away from it in opposite directions. That is the
+per-channel sampling offset, and it is the single biggest reason small text
+stops being readable.
+
+The same screen, about a second apart. Nothing moved and nothing was typed —
+this is the warp phase and the hue rotation drifting on their own:
+
+![Drift](../../docs/ego-death-drift.png)
+
+It applies to shell surfaces too, because the shader runs on the finished
+frame and has no idea what a window is. The Omarchy menu, mid-melt — every
+edge of that card is meant to be straight:
+
+![Menu](../../docs/ego-death-menu.png)
+
 ## The part that isn't a colour scheme
 
 Every other Omarchy theme is static config. This one loads a **GLSL fragment
