@@ -85,6 +85,8 @@ other sections at their defaults.
 calvin & hobbes
 the far side
 annoying (randomly timed subtle looknfeel changes to unnerve you, no loudness just erk)
+not a theme but - ritzpah roullete!! a shell script mish-moshing everything together; or not together!!
+your computer is a website!!! famous website based themes
 ```
 
 
