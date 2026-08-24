@@ -78,6 +78,16 @@ Shipping `shell.<section>.toml` files is safer than shipping a whole
 `shell.toml` — Omarchy merges each one into the generated file and leaves the
 other sections at their defaults.
 
+
+
+## so I don't forget when I have more tokens!!!
+```
+calvin & hobbes
+the far side
+annoying (randomly timed subtle looknfeel changes to unnerve you, no loudness just erk)
+```
+
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
