@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+#
+# Install one (or every) Ritzpah theme into ~/.config/omarchy/themes.
+#
+#   ./install                 # list what's in the repo
+#   ./install acid-vortex     # install that theme and switch to it
+#   ./install --all           # install all of them, switch to none
+#   ./install --link acid-vortex   # symlink instead of copy (for editing)
+#
+# Omarchy's own `omarchy theme install <url>` expects one repo per theme, so a
+# collection repo needs this instead.
+
+set -euo pipefail
+
+REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+THEMES_SRC="$REPO_DIR/themes"
+THEMES_DST="$HOME/.config/omarchy/themes"
+
+LINK=0
+ALL=0
+WANTED=()
+
+for arg in "$@"; do
+  case "$arg" in
+    --link) LINK=1 ;;
+    --all) ALL=1 ;;
+    -h|--help) sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
+    -*) echo "Unknown flag: $arg" >&2; exit 1 ;;
+    *) WANTED+=("$arg") ;;
+  esac
+done
+
+available=()
+for dir in "$THEMES_SRC"/*/; do
+  [[ -f "$dir/colors.toml" ]] && available+=("$(basename "$dir")")
+done
+
+if (( ALL == 0 )) && (( ${#WANTED[@]} == 0 )); then
+  echo "Themes in this repo:"
+  printf '  %s\n' "${available[@]}"
+  echo
+  echo "Install one with: ./install <name>"
+  exit 0
+fi
+
+(( ALL == 1 )) && WANTED=("${available[@]}")
+
+mkdir -p "$THEMES_DST"
+
+for name in "${WANTED[@]}"; do
+  src="$THEMES_SRC/$name"
+  dst="$THEMES_DST/$name"
+
+  if [[ ! -f "$src/colors.toml" ]]; then
+    echo "No theme named '$name' in $THEMES_SRC" >&2
+    exit 1
+  fi
+
+  rm -rf "$dst"
+  if (( LINK == 1 )); then
+    ln -s "$src" "$dst"
+    echo "linked $name -> $src"
+  else
+    cp -r "$src" "$dst"
+    echo "installed $name"
+  fi
+done
+
+if (( ALL == 0 )) && (( ${#WANTED[@]} == 1 )); then
+  omarchy theme set "${WANTED[0]}"
+  echo "switched to ${WANTED[0]}"
+fi

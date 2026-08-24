@@ -1,0 +1,36 @@
+# Acid Vortex - neon-on-void psychedelic theme
+mode = "dark"
+
+accent = "#ff2fd0"
+selection = "#5b0fb0"
+muted = "#7d4fd6"
+
+background = "#100024"
+dark_background = "#0a0018"
+darker_background = "#05000f"
+lighter_background = "#2b0a5e"
+
+foreground = "#f4e8ff"
+dark_foreground = "#9a6fe0"
+light_foreground = "#d9c4ff"
+bright_foreground = "#ffffff"
+
+red = "#ff1f5a"
+yellow = "#ffe600"
+orange = "#ff8a1f"
+green = "#3dff9e"
+cyan = "#22f0ff"
+blue = "#7b5cff"
+magenta = "#ff5df2"
+brown = "#c06a9a"
+
+bright_red = "#ff5c86"
+bright_yellow = "#fff85c"
+bright_green = "#7dffc0"
+bright_cyan = "#7ff7ff"
+bright_blue = "#a58cff"
+bright_magenta = "#ff9bf7"
+
+# Four-stop rotating rainbow border (see hyprland.lua borderangle animation)
+hyprland_active_border = "rgba(ff2fd0ff) rgba(22f0ffff) rgba(3dff9eff) rgba(ffe600ff) 45deg"
+hyprland_inactive_border = "rgba(3d0f7a99)"

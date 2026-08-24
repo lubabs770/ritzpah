@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+#
+# Regenerate the Acid Vortex wallpaper set with ImageMagick.
+#
+#   tools/make-backgrounds [output-dir] [width] [height]
+#
+# Defaults to themes/acid-vortex/backgrounds at 2560x1440. Every image is
+# synthesised from noise and gradients -- nothing is downloaded. The plasma
+# sources are random, so each run produces a different set in the same palette.
+
+set -euo pipefail
+
+OUT="${1:-$(dirname "$0")/../themes/acid-vortex/backgrounds}"
+W="${2:-2560}"
+H="${3:-1440}"
+
+command -v magick >/dev/null || { echo "ImageMagick 7 (magick) is required" >&2; exit 1; }
+
+mkdir -p "$OUT"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+# The palette is a 256x1 lookup table of narrow neon bands separated by void.
+# Mapping a grayscale field through it turns smooth gradients into glowing
+# filaments instead of a pastel wash.
+magick \
+  \( -size 1x22 gradient:'#05000f-#7a0fb0' \) \( -size 1x10 gradient:'#7a0fb0-#ff2fd0' \) \( -size 1x22 gradient:'#ff2fd0-#0a0018' \) \
+  \( -size 1x22 gradient:'#0a0018-#0f5fa0' \) \( -size 1x10 gradient:'#0f5fa0-#22f0ff' \) \( -size 1x22 gradient:'#22f0ff-#05000f' \) \
+  \( -size 1x22 gradient:'#05000f-#0f7a4a' \) \( -size 1x10 gradient:'#0f7a4a-#3dff9e' \) \( -size 1x22 gradient:'#3dff9e-#0a0018' \) \
+  \( -size 1x22 gradient:'#0a0018-#a06a00' \) \( -size 1x10 gradient:'#a06a00-#ffe600' \) \( -size 1x30 gradient:'#ffe600-#12002a' \) \
+  \( -size 1x32 gradient:'#12002a-#ff2fd0' \) \
+  -append -rotate 90 "$TMP/clut.png"
+
+magick -size "${W}x${H}" radial-gradient:'#ffffff-#3a3a3a' "$TMP/vig.png"
+
+# Grayscale field -> neon palette -> bloom, vignette, contrast.
+paint() { # $1=gray in  $2=jpg out
+  magick "$1" -type TrueColor "$TMP/clut.png" -interpolate bilinear -clut "$TMP/painted.png"
+  magick "$TMP/painted.png" \( +clone -blur 0x18 \) -compose screen -composite \
+    "$TMP/vig.png" -compose multiply -composite \
+    -brightness-contrast -6x12 -modulate 100,125,100 \
+    -quality 93 "$2"
+}
+
+echo "1-vortex"
+magick -size "${W}x${H}" plasma:fractal -colorspace Gray -auto-level \
+  -blur 0x3 -swirl 900 -implode -0.35 "$TMP/g.png"
+paint "$TMP/g.png" "$OUT/1-vortex.jpg"
+
+# Rendered tall, then cropped: -wave leaves transparent bands at the edges.
+echo "2-melt"
+magick -size "${W}x$((H + 460))" plasma:fractal -colorspace Gray -auto-level -blur 0x2 \
+  -wave 70x460 -gravity center -crop "${W}x${H}+0+0" +repage -swirl 200 "$TMP/g.png"
+paint "$TMP/g.png" "$OUT/2-melt.jpg"
+
+# Square canvas keeps the rings circular; the crop drops the dead corners.
+echo "3-third-eye"
+magick -size 3400x3400 radial-gradient:white-black -colorspace Gray \
+  -function Sinusoid 8,0 -implode 0.7 -swirl 90 \
+  -gravity center -crop "${W}x${H}+0+0" +repage "$TMP/g.png"
+paint "$TMP/g.png" "$OUT/3-third-eye.jpg"
+
+# Vertical stripes bent into radial rays by DePolar, then twisted.
+echo "4-hyperspace"
+magick -size 2048x1024 gradient:white-black -colorspace Gray -rotate 90 \
+  -function Sinusoid 15,0 -virtual-pixel HorizontalTile -distort DePolar 0 \
+  -resize 3400x3400\! -blur 0x2 -swirl 300 \
+  -gravity center -crop "${W}x${H}+0+0" +repage "$TMP/g.png"
+paint "$TMP/g.png" "$OUT/4-hyperspace.jpg"
+
+echo "5-kaleidoscope"
+magick -size "${W}x${H}" plasma:fractal -colorspace Gray -auto-level \
+  -blur 0x3 -swirl 900 -implode -0.35 \
+  -gravity center -crop "$((W / 2))x$((H / 2))+0+0" +repage "$TMP/q.png"
+magick \( "$TMP/q.png" \( +clone -flop \) +append \) \( +clone -flip \) -append "$TMP/g.png"
+paint "$TMP/g.png" "$OUT/5-kaleidoscope.jpg"
+
+echo "wrote 5 backgrounds to $OUT"
