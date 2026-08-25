@@ -113,6 +113,18 @@ def collect(repo, assets):
 
 REPO = "https://github.com/lubabs770/ritzpah"
 
+# GitHub's own mark, inlined. An <img> would be a request to a third-party host,
+# and this site does not make any.
+GITHUB_MARK = (
+    '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0'
+    ' 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01'
+    '.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58'
+    ' 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87'
+    '.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0'
+    ' 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0'
+    ' 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012'
+    ' 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>')
+
 AUDIT_PROMPT = """Audit this repo before I install it: https://github.com/lubabs770/ritzpah
 Clone it somewhere temporary and actually read it. Tell me:
 - what executes, and when - install time, every shell start, on a timer?
@@ -159,8 +171,10 @@ h1,h2,h3{letter-spacing:-.025em;line-height:1.1;margin:0}
   display:flex;align-items:center;gap:2px}
 .brand i{color:var(--accent);font-style:normal}
 .nav-links{display:flex;gap:22px;margin-left:auto;align-items:center}
-.nav-links a{font-size:14.5px;color:var(--dim);text-decoration:none;transition:color .15s}
+.nav-links a{font-size:14.5px;color:var(--dim);text-decoration:none;transition:color .15s;
+  display:inline-flex;align-items:center}
 .nav-links a:hover,.nav-links a[aria-current]{color:var(--ink)}
+.nav-links a svg{width:20px;height:20px;fill:currentColor;display:block}
 @media(max-width:640px){.nav-links a.hide-sm{display:none}}
 
 /* ----------------------------------------------------------------- button */
@@ -347,7 +361,7 @@ def nav(active, depth=0):
 {link("catalog.html", "Themes", "catalog")}
 {link("contributing.html", "Contribute", "contributing")}
 {link("contributing.html#trust", "Security", "trust", True)}
-<a href="{REPO}">GitHub</a>
+<a href="{REPO}" aria-label="Ritzpah on GitHub" title="Source on GitHub">{GITHUB_MARK}</a>
 <a class="btn primary sm" href="{up}catalog.html">Browse</a>
 </div></div></nav>"""
 
@@ -424,24 +438,23 @@ def card(theme, depth=0):
 
 
 FEATURES = [
-    ("01", "Generated, never downloaded",
-     "Every wallpaper is built from plasma noise, gradients and drawing primitives by a "
-     "script that ships with the theme. The recipe is the deliverable, so there is no "
-     "licence to chase and no provenance to explain."),
-    ("02", "Contrast measured, not claimed",
-     "Each theme declares a WCAG floor and every ink slot is measured against it at build "
-     "time. A slot allowed below the floor names itself and says why. Nothing on this site "
-     "was typed by hand."),
-    ("03", "One command, nothing clever",
-     "Themes are copied into Omarchy's own themes directory. No symlinks, no daemon, no "
-     "plugin in your shell process. Delete the folder and it is gone."),
+    ("01", "The recipe ships, not just the picture",
+     "Every wallpaper comes with the script that drew it. Run it again and you get a fresh "
+     "set in the same palette, at whatever size your screen actually is."),
+    ("02", "Loud, but you can still read it",
+     "Every theme says how readable it promises to be, and that promise is checked before "
+     "it ships. Where a colour sits below the line it says so on its own page, and says why."),
+    ("03", "It is just files in a folder",
+     "Installing copies a directory into Omarchy's themes folder. No symlinks, no background "
+     "process, nothing running inside your shell. Delete the folder and it is gone."),
 ]
 
 
 def render_landing(themes):
     lead = next((t for t in themes if t["slug"] == "blueprint"), themes[0])
     walls = sum(t["wallpapers"] for t in themes)
-    stats = [("Themes", len(themes)), ("Wallpapers", walls), ("Downloaded", 0),
+    stats = [("Themes", len(themes)), ("Wallpapers", walls),
+             ("Generators", sum(1 for t in themes if t["generator"])),
              ("Ink slots each", len(themes[0]["slots"])),
              ("Shader themes", sum(1 for t in themes if t["shader"]))]
     band = "".join(f"<div><dt>{esc(k)}</dt><dd>{esc(v)}</dd></div>" for k, v in stats)
@@ -453,8 +466,8 @@ def render_landing(themes):
 <p class="eyebrow">Omarchy theme collection</p>
 <h1>Desktop themes that are not trying to be tasteful<i>.</i></h1>
 <p class="lede">{len(themes)} themes for Omarchy, each one built to be seen from across
-the room. Generated wallpapers, measured contrast, and a one-line install that
-copies files and does nothing else.</p>
+the room. Wallpapers that ship with the script that drew them, contrast you can
+check, and an install that just copies files.</p>
 <div class="actions">
 <a class="btn primary" href="catalog.html">Browse {len(themes)} themes</a>
 <a class="btn" href="#install">How to install</a>
