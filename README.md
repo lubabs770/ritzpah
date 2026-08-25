@@ -107,6 +107,15 @@ not a theme but - ritzpah-roulette!! a shell script that mish-moshes every theme
   liked, --dry-run to see what it was about to do to you. only escape is
   `omarchy theme set "Acid Vortex"`
 your computer is a website!!! famous website based themes
+
+material you for omarchy - the serious one. derive colors.toml FROM the current
+  wallpaper instead of the other way round: extract the dominant hues, run them
+  through material color utilities (tonal palettes, not raw pixel colors) and emit a
+  real theme directory, so `omarchy theme bg next` restyles the entire desktop.
+  matugen already does the extraction; the actual work is the omarchy layout, holding
+  a 4.5:1 contrast floor on text the way untitled does, and picking light vs dark from
+  the image's own luma. ships as a tool, not a theme:
+  tools/make-theme-from-wallpaper <image>
 ```
 
 
