@@ -2,6 +2,10 @@
 
 Omarchy themes. Loud ones.
 
+**Catalog: [lubabs770.github.io/ritzpah](https://lubabs770.github.io/ritzpah/)**
+— every theme, its full palette with measured contrast, and its wallpapers. The
+page wears whichever theme you are reading about.
+
 Omarchy's own `omarchy theme install <url>` expects one repo per theme, so this
 collection ships its own CLI.
 
