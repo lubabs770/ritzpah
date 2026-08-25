@@ -168,6 +168,8 @@ we need to make this a proper layer above the normal omarchy theme layer, so it 
 we need to restructre the github repo so the roster can be browsed properly (github pages deployment? netlify drop?)
 
 add a dash cmd for claude helping users make a theme in one prompt
+
+themes dynamicly built in real time based off of ridicoulous vars, like sports scores, the weather etc.
 ```
 
 
