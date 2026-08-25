@@ -175,20 +175,11 @@ h1,h2,h3{letter-spacing:-.025em;line-height:1.1;margin:0}
 
 /* ------------------------------------------------------------------ hero */
 .hero{padding:clamp(64px,11vw,116px) 0 clamp(48px,7vw,76px)}
-.hero-grid{display:grid;gap:clamp(34px,6vw,64px);align-items:center;
-  grid-template-columns:minmax(0,1fr)}
-@media(min-width:940px){.hero-grid{grid-template-columns:minmax(0,1.02fr) minmax(0,1fr)}}
-.hero h1{font-size:clamp(42px,7.2vw,74px)}
+.hero-grid{max-width:none}
+.hero h1{font-size:clamp(42px,7vw,78px);max-width:15ch}
 .hero h1 i{color:var(--accent);font-style:normal}
-.hero .lede{margin:20px 0 0}
+.hero .lede{margin:22px 0 0;max-width:58ch}
 .hero .actions{margin:30px 0 0;display:flex;gap:11px;flex-wrap:wrap}
-.hero-shot{border:1px solid var(--line);border-radius:var(--rad);overflow:hidden;
-  box-shadow:0 24px 64px -32px rgba(0,0,0,.9)}
-.hero-shot img{width:100%;aspect-ratio:16/10;object-fit:cover;object-position:top left}
-.hero-shot figcaption{border-top:1px solid var(--line);background:var(--panel);
-  padding:11px 15px;font:13px/1.4 var(--mono);color:var(--dim);
-  display:flex;justify-content:space-between;gap:12px}
-
 /* ------------------------------------------------------------------ band */
 .band{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
   background:var(--panel)}
@@ -457,17 +448,8 @@ def render_landing(themes):
     feats = "".join(
         f'<div class="feat"><span class="ico">{n}</span><h3>{esc(t)}</h3><p>{esc(b)}</p></div>'
         for n, t, b in FEATURES)
-    featured = "".join(card(t) for t in themes[:3])
-    shot = lead["assets"].get("preview")
-    hero_shot = (f'<figure class="hero-shot"><img src="assets/{esc(shot)}" '
-                 f'alt="{esc(lead["name"])} desktop" width="1600" height="1000">'
-                 f'<figcaption><span>{esc(lead["name"])}</span>'
-                 f'<span>{esc(lead["floor"])}:1 floor</span></figcaption></figure>'
-                 if shot else "")
-
     body = f"""
-<header class="hero"><div class="wrap hero-grid">
-<div>
+<header class="hero"><div class="wrap"><div class="hero-grid">
 <p class="eyebrow">Omarchy theme collection</p>
 <h1>Desktop themes that are not trying to be tasteful<i>.</i></h1>
 <p class="lede">{len(themes)} themes for Omarchy, each one built to be seen from across
@@ -477,9 +459,7 @@ copies files and does nothing else.</p>
 <a class="btn primary" href="catalog.html">Browse {len(themes)} themes</a>
 <a class="btn" href="#install">How to install</a>
 </div>
-</div>
-{hero_shot}
-</div></header>
+</div></div></header>
 
 <div class="band"><div class="band-in">{band}</div></div>
 
@@ -491,17 +471,9 @@ underneath. These are the three rules the whole collection is held to.</p></div>
 <div class="feats">{feats}</div>
 </div></section>
 
-<section class="sec"><div class="wrap">
-<div class="sec-head row">
-<div><p class="eyebrow">The roster</p><h2>Start with these three</h2></div>
-<a class="btn" href="catalog.html">See all {len(themes)}</a>
-</div>
-<ul class="cards">{featured}</ul>
-</div></section>
-
 <section class="sec" id="install"><div class="wrap">
 <div class="sec-head"><p class="eyebrow">Getting started</p>
-<h2>Installed in three commands</h2>
+<h2>Clone it, wear it, then make your own</h2>
 <p>Omarchy's own <code>omarchy theme install</code> expects one repository per
 theme, so this collection ships its own small CLI instead.</p></div>
 <ol class="steps">
@@ -511,6 +483,13 @@ at runtime and nothing phones home.</p></li>
 its measured contrast. <code>./ritzpah install &lt;name&gt;</code> copies one in.</p></li>
 <li><h3>Switch to it</h3><p><code>omarchy theme set &lt;name&gt;</code>. Installing
 never switches on its own, so stocking the shelf cannot change your desktop.</p></li>
+<li><h3>Make one</h3><p>Write a <code>colors.toml</code>, declare it in
+<code>theme.json</code>, earn your contrast floor, and let a script draw the
+wallpapers. <a href="contributing.html">The guide</a> is six steps long.</p></li>
+<li><h3>Roulette it</h3><p><em>Not built yet.</em> Deal a palette, a
+<code>hyprland.lua</code>, a wallpaper and shell sections from different themes
+at random, and install the chimera as a real theme called Roulette.
+<code>--seed</code> reproduces a disaster worth keeping.</p></li>
 </ol>
 <div class="cmd" style="margin-top:24px">
 <pre id="quick">git clone {REPO}.git
