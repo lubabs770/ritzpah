@@ -117,10 +117,22 @@ Clone it somewhere temporary and actually read it. Tell me:
 Quote the exact lines for anything you flag. If it's clean, say so plainly.
 ```
 
-To make that cheap: the only things here that execute are `ritzpah`, `install`,
-`tools/ritzpah-lib.py`, `tools/ritzpah-site.py` and `tools/make-backgrounds-*`.
-Everything else is TOML, Lua and images. **Nothing in this repo makes a network
-request. Nothing runs on a schedule. Nothing runs at shell startup.**
+To make that cheap, the site publishes the **whole audit surface**, computed
+from the files at build time rather than written down once and left to rot:
+[every file in this repo that can execute](https://lubabs770.github.io/ritzpah/contributing.html#trust),
+why it counts as executable, and every line in it that mentions anything capable
+of reaching the network — false positives included, with the scan pattern shown
+so you can judge it rather than trust it.
+
+That list is generated because it will keep changing. Themes are allowed to ship
+their own scripts, and a security claim frozen into a README is exactly the kind
+that quietly stops being true.
+
+Reproduce it yourself:
+
+```bash
+./ritzpah site && $BROWSER site/contributing.html
+```
 
 An audit covers the commit you audited. Run it again after `git pull`.
 

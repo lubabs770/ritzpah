@@ -10,6 +10,7 @@ output directory it is given.
 """
 
 import html
+import re
 import importlib.util
 import json
 import os
@@ -124,6 +125,65 @@ GITHUB_MARK = (
     ' 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0'
     ' 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012'
     ' 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>')
+
+# Disclosed on the page itself, so a reader can judge the scan rather than trust
+# it. Deliberately broad: it over-matches (a URL in a comment counts) rather than
+# risking a miss, and every hit is shown with its line.
+NETWORK_PATTERN = re.compile(
+    r"\b(curl|wget|nc|ssh|scp|rsync|ftp|urllib|requests\.|http\.client|socket\.|"
+    r"fetch\(|XMLHttpRequest|https?://)", re.I)
+
+SKIP_DIRS = {".git", "site", "node_modules", "__pycache__"}
+DATA_SUFFIXES = {".toml", ".lua", ".json", ".md", ".png", ".jpg", ".jpeg", ".webp",
+                 ".theme", ".conf", ".frag", ".txt", ".yml", ".yaml", ""}
+
+
+def repo_commit(repo):
+    try:
+        out = subprocess.run(["git", "-C", repo, "rev-parse", "--short", "HEAD"],
+                             capture_output=True, text=True, check=True)
+        return out.stdout.strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return ""
+
+
+def audit_surface(repo):
+    """Everything in the repo that can execute, found rather than remembered.
+
+    A file counts as executable if the filesystem says so or it opens with a
+    shebang. Each one is then scanned for anything that looks like it reaches
+    the network, and the hits are reported verbatim -- including the false
+    positives, because hiding them would defeat the point.
+    """
+    executables = []
+    for root, dirs, names in os.walk(repo):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for name in sorted(names):
+            path = os.path.join(root, name)
+            rel = os.path.relpath(path, repo)
+            executable = os.access(path, os.X_OK) and os.path.isfile(path)
+            shebang = False
+            text = ""
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    text = handle.read()
+                shebang = text.startswith("#!")
+            except (OSError, UnicodeDecodeError):
+                text = ""
+            if not (executable or shebang):
+                continue
+            if os.path.splitext(name)[1] in {".png", ".jpg", ".jpeg", ".webp"}:
+                continue
+            hits = []
+            for number, line in enumerate(text.splitlines(), 1):
+                if NETWORK_PATTERN.search(line):
+                    stripped = line.strip()
+                    hits.append((number, stripped[:150]))
+            executables.append({"path": rel, "exec_bit": executable,
+                                "shebang": shebang, "hits": hits})
+    executables.sort(key=lambda e: e["path"])
+    return executables
+
 
 AUDIT_PROMPT = """Audit this repo before I install it: https://github.com/lubabs770/ritzpah
 Clone it somewhere temporary and actually read it. Tell me:
@@ -296,6 +356,22 @@ code{font-family:var(--mono);font-size:.93em}
 .note-box{border-left:2px solid var(--accent);padding:4px 0 4px 18px;margin:0}
 .note-box p{margin:0;max-width:68ch}
 .note-box p + p{margin-top:11px;color:var(--dim)}
+
+/* --------------------------------------------------------------- surface */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--rad);
+  margin-top:22px;background:var(--panel)}
+table.surface{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+table.surface th{text-align:left;font:500 11.5px/1 var(--mono);letter-spacing:.1em;
+  text-transform:uppercase;color:var(--dim);padding:14px 16px;
+  border-bottom:1px solid var(--line);white-space:nowrap}
+table.surface td{padding:13px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+table.surface tr:last-child td{border-bottom:0}
+table.surface .dimcell{color:var(--dim);white-space:nowrap}
+table.surface .ok{color:var(--dim)}
+table.surface details summary{cursor:pointer;color:var(--accent)}
+table.surface details ul{margin:10px 0 0;padding-left:18px;display:grid;gap:7px}
+table.surface details li{font:12.5px/1.5 var(--mono);color:var(--dim);word-break:break-word}
+.scanline{margin:14px 0 0;font-size:13px;color:var(--dim);word-break:break-all}
 
 /* ---------------------------------------------------------------- footer */
 footer{border-top:1px solid var(--line);padding:52px 0 64px;background:var(--panel)}
@@ -579,8 +655,49 @@ STEPS = [
 ]
 
 
-def render_contributing(themes):
+def render_surface(executables, commit):
+    """The security section's table, built from what is actually in the repo."""
+    rows = []
+    total_hits = 0
+    for entry in executables:
+        hits = entry["hits"]
+        total_hits += len(hits)
+        why = "executable bit" if entry["exec_bit"] else "shebang only"
+        if hits:
+            detail = "".join(
+                f'<li><code>line {n}</code> {esc(text)}</li>' for n, text in hits)
+            net = (f'<details><summary>{len(hits)} match'
+                   f'{"es" if len(hits) != 1 else ""}</summary><ul>{detail}</ul></details>')
+        else:
+            net = '<span class="ok">none</span>'
+        rows.append(f'<tr><td><code>{esc(entry["path"])}</code></td>'
+                    f'<td class="dimcell">{why}</td><td>{net}</td></tr>')
+
+    stamp = f' at <code>{esc(commit)}</code>' if commit else ""
+    summary = (f"{len(executables)} file{'s' if len(executables) != 1 else ''} in this "
+               f"repository can execute{stamp}. Everything else is data.")
+    if total_hits:
+        note = (f"The scan found {total_hits} line{'s' if total_hits != 1 else ''} "
+                f"mentioning something that could reach the network. Every one is shown "
+                f"in full, false positives included \u2014 a URL in a comment counts, and so "
+                f"does the word <code>curl</code> inside the prompt above. Read them and "
+                f"decide for yourself.")
+    else:
+        note = ("Nothing matched the network scan. That is evidence, not proof, which is "
+                "why the prompt above exists.")
+
+    return f"""<div style="margin-top:30px">
+<p class="lede" style="max-width:76ch">{summary} {note}</p>
+<div class="tablewrap"><table class="surface">
+<thead><tr><th>File</th><th>Why it counts</th><th>Network scan</th></tr></thead>
+<tbody>{"".join(rows)}</tbody></table></div>
+<p class="scanline">Scan pattern: <code>{esc(NETWORK_PATTERN.pattern)}</code></p>
+</div>"""
+
+
+def render_contributing(themes, executables=(), commit=""):
     steps = "".join(f"<li><h3>{t}</h3><p>{b}</p></li>" for t, b in STEPS)
+    surface = render_surface(executables, commit)
     body = f"""
 <section class="sec"><div class="wrap">
 <div class="sec-head"><p class="eyebrow">Contributing</p>
@@ -615,14 +732,14 @@ repo, so don't — ask your own agent first.</p></div>
 <div class="cmd"><pre id="audit">{esc(AUDIT_PROMPT)}</pre>
 <button class="btn" data-copy="audit">Copy prompt</button></div>
 <div class="note-box" style="margin-top:30px">
-<p>To make that cheap: the only things that execute are <code>ritzpah</code>,
-<code>install</code>, <code>tools/ritzpah-lib.py</code>,
-<code>tools/ritzpah-site.py</code> and <code>tools/make-backgrounds-*</code>.
-Everything else is TOML, Lua and images. Nothing in the repository makes a
-network request, runs on a schedule, or runs at shell startup.</p>
+<p>To make that cheap, here is the entire audit surface, <strong>found by
+reading the repository when this page was built</strong> rather than written
+down once and left to rot. Themes are allowed to ship their own scripts, so this
+list will grow — and it grows here automatically when it does.</p>
 <p>An audit covers the commit you audited. Run it again after a
 <code>git pull</code>.</p>
 </div>
+{surface}
 </div></section>
 """
     return page("Contribute — Ritzpah",
@@ -728,6 +845,8 @@ def build(repo, out):
     os.makedirs(os.path.join(out, "themes"))
 
     themes = collect(repo, assets)
+    surface = audit_surface(repo)
+    commit = repo_commit(repo)
 
     with open(os.path.join(assets, "site.css"), "w", encoding="utf-8") as fh:
         fh.write(CSS)
@@ -737,7 +856,7 @@ def build(repo, out):
     pages = {
         "index.html": render_landing(themes),
         "catalog.html": render_catalog(themes),
-        "contributing.html": render_contributing(themes),
+        "contributing.html": render_contributing(themes, surface, commit),
     }
     for index, theme in enumerate(themes):
         pages[os.path.join("themes", f'{theme["slug"]}.html')] = render_theme_page(
