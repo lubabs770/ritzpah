@@ -282,21 +282,42 @@ local function bake()
     return values[key] or ("/* unbaked " .. key .. " */ 0.0")
   end)
 
-  local handle = io.open(theme_dir .. "/sky.frag", "w")
+  -- Refuse to install a shader that is not whole. An unsubstituted @@KEY@@ is
+  -- not valid GLSL, and a template that does not open with #version cannot be
+  -- one either -- in the ES profile nothing at all is allowed in front of that
+  -- line, not even a comment, which is why the header goes after it.
+  local version, body = out:match("^(#version[^\n]*\n)(.*)$")
+  if not version or out:find("@@") then return false end
+
+  -- Write somewhere else and rename into place. Hyprland reads this file while
+  -- applying the very config that is writing it, so opening the real path with
+  -- "w" truncates a file the compositor may be about to read, and it would get
+  -- half a shader. A rename on the same filesystem is atomic: the compositor
+  -- sees the old shader or the new one and never a torn one.
+  --
+  -- That matters more than it sounds like it does. A screen shader that fails
+  -- to compile can be logged by the compositor on every frame, and this theme
+  -- sets damage_tracking = 0, so "every frame" means sixty times a second into
+  -- a log in a tmpfs. That is how a cosmetic bug becomes a full disk.
+  local tmp = theme_dir .. "/sky.frag.new"
+  local handle = io.open(tmp, "w")
   if not handle then return false end
-  -- A header nobody needs and everybody wants: the sky this file was cut for.
-  -- It goes after the #version line, because in the ES profile nothing at all
-  -- is allowed in front of that -- not even a comment.
-  local version, body = out:match("^([^\n]*\n)(.*)$")
-  handle:write(version)
-  handle:write(string.format(
+  local ok = handle:write(version) and handle:write(string.format(
     "// Baked %s UTC for %.4f, %.4f (%s).\n" ..
     "// Moon: altitude %+.2f deg, azimuth %.2f deg, %.1f%% lit and %s,\n" ..
     "// %.0f km away, phase angle %.1f deg.\n",
     os.date("!%Y-%m-%d %H:%M:%S", now), lat, lon, source,
     alt, az, illum * 100, waxing and "waxing" or "waning", mdist, phase_angle))
-  handle:write(body)
+    and handle:write(body)
   handle:close()
+  if not ok then
+    os.remove(tmp)
+    return false
+  end
+  if not os.rename(tmp, theme_dir .. "/sky.frag") then
+    os.remove(tmp)
+    return false
+  end
   return true
 end
 
