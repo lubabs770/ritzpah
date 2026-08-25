@@ -107,7 +107,7 @@ animations. Gaps and per-window opacity belong to the human.
 
 ---
 
-## PART THREE: WALLPAPERS ARE SYNTHESIZED, NOT SCAVENGED
+## PART THREE: WALLPAPERS — SYNTHESIZE, SCAVENGE, OR BOTH
 
 ```bash
 tools/make-backgrounds                     # acid-vortex
@@ -115,8 +115,17 @@ tools/make-backgrounds-ego-death           # ego-death
 tools/make-backgrounds [dir] [W] [H]       # defaults 2560x1440
 ```
 
-Not one pixel in this repo was downloaded. Every wallpaper is built from
-ImageMagick plasma noise pushed through a **256x1 CLUT** — a lookup strip of
+**Generate it, fetch it, or do both and collide them.** The old rule said
+synthesize only. That rule is dead. Pick whichever route ends up more
+outrageous, pompous, ludicrous and silly for the theme at hand, and if you
+genuinely cannot decide, do both and composite one over the other. A fetched
+image must be one you are allowed to ship: check the license, record where it
+came from in the theme's `README.md`, and prefer public-domain or CC0 sources.
+If a fetch would need a credit you cannot honour, generate instead.
+
+The existing generators still work the same way. Every wallpaper shipped so far
+is built from ImageMagick plasma noise pushed through a **256x1 CLUT** — a
+lookup strip of
 narrow neon bands separated by dead void. Map a smooth grayscale field through
 it and the gradients snap into glowing filaments instead of a pastel smear.
 Then: bloom, vignette, contrast, saturation.
@@ -156,12 +165,18 @@ output; change the script.
 
 1. `themes/<lowercase-hyphen-name>/`
 2. Write `colors.toml` first. Look at it. Only then reach for the Lua.
-3. Add wallpapers via a `tools/make-backgrounds-<name>` script — the generator
-   ships, not the provenance question.
-4. `preview.png`, then `themes/<name>/README.md`.
-5. `./install --link <name>` and live in it for a while.
-6. Link it from the root `README.md` "Themes" section, with palette + preview.
-7. Commit. Push. Loudly.
+3. Wallpapers: generate them with a `tools/make-backgrounds-<name>` script, fetch
+   them, or both — whichever is more ludicrous. If generated, the script ships. If
+   fetched, the source and license go in the theme's `README.md`.
+4. `themes/<name>/PROMPT.md` — **the original prompt, verbatim.** Every theme
+   records
+   the exact words that summoned it, typos and all, plus the date. No cleaning it
+   up afterwards to sound smarter than you were. If a theme grew across several
+   prompts, list them in order. A theme without its prompt is an orphan.
+5. `preview.png`, then `themes/<name>/README.md`.
+6. `./install --link <name>` and live in it for a while.
+7. Link it from the root `README.md` "Themes" section, with palette + preview.
+8. Commit. Push. Loudly.
 
 ---
 

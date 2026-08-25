@@ -85,7 +85,13 @@ other sections at their defaults.
 calvin & hobbes
 the far side
 annoying (randomly timed subtle looknfeel changes to unnerve you, no loudness just erk)
-not a theme but - ritzpah roullete!! a shell script mish-moshing everything together; or not together!!
+not a theme but - ritzpah-roulette!! a shell script that mish-moshes every theme in the
+  repo together in a completely and profoundly perplexed way: colors.toml from one theme,
+  hyprland.lua from another, a wallpaper from a third, icons.theme from a fourth, shell
+  sections dealt out at random. installs the chimera as a real theme called Roulette so
+  omarchy cannot tell it was assembled by a coin. --seed N to reproduce a disaster you
+  liked, --dry-run to see what it was about to do to you. only escape is
+  `omarchy theme set "Acid Vortex"`
 your computer is a website!!! famous website based themes
 ```
 
