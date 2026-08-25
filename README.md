@@ -108,14 +108,17 @@ not a theme but - ritzpah-roulette!! a shell script that mish-moshes every theme
   `omarchy theme set "Acid Vortex"`
 your computer is a website!!! famous website based themes
 
-material you for omarchy - the serious one. derive colors.toml FROM the current
-  wallpaper instead of the other way round: extract the dominant hues, run them
-  through material color utilities (tonal palettes, not raw pixel colors) and emit a
-  real theme directory, so `omarchy theme bg next` restyles the entire desktop.
-  matugen already does the extraction; the actual work is the omarchy layout, holding
-  a 4.5:1 contrast floor on text the way untitled does, and picking light vs dark from
-  the image's own luma. ships as a tool, not a theme:
-  tools/make-theme-from-wallpaper <image>
+material 3 for omarchy - the serious one. not a palette, the whole design system.
+  m3 says elevation is a surface TONE not a shadow (surface-container-lowest through
+  highest), shape is a scale (4/8/12/16/28, not one rounding value), motion has named
+  emphasized and standard easings, and color comes as ~26 semantic roles - primary,
+  on-primary, primary-container, outline, outline-variant - each pulled from a 13-tone
+  tonal palette. the hard part is the squeeze: omarchy's colors.toml is basically ansi
+  16 plus a handful of slots, so most of the work is deciding which roles survive that
+  mapping and which get faked in hyprland.lua and the shell.<section>.toml files.
+  material you (extract the tonal palettes from the current wallpaper, matugen already
+  does that part) is one feature of this, not the point of it - do the static system
+  first, then let the wallpaper drive the source color.
 ```
 
 
