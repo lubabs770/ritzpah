@@ -1,0 +1,15 @@
+# The launcher is the one card you are actually reading while it is open, so
+# the scrim behind it is heavy and everything else stops competing.
+[launcher]
+background                = "#070c18"
+background-alpha          = 0.97
+text                      = "#d9dee8"
+border                    = "hyprland.active-border-foreground"
+border-alpha              = 1.0
+scrim                     = "#010206"
+scrim-alpha               = 0.68
+selected-background       = "#cfe0f5"
+selected-background-alpha = 0.12
+selected-text             = "#f4f7fb"
+selected-border           = "hyprland.active-border-foreground"
+selected-border-alpha     = 0.45

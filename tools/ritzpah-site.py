@@ -133,6 +133,14 @@ NETWORK_PATTERN = re.compile(
     r"\b(curl|wget|nc|ssh|scp|rsync|ftp|urllib|requests\.|http\.client|socket\.|"
     r"fetch\(|XMLHttpRequest|https?://)", re.I)
 
+# Themes are allowed to ship code, and a `live` theme by definition writes
+# something. Scanning for that is the other half of the question the audit
+# prompt asks, and it was not being answered until a theme started writing.
+WRITE_PATTERN = re.compile(
+    r"(io\.open\([^)]*[\"'](?:w|a|r\+|w\+|a\+)[\"']|open\([^)]*[\"'](?:w|a|x)b?[\"']|"
+    r"\bos\.remove\b|\bos\.rename\b|\bshutil\.(?:copy|move|rmtree)|\bos\.makedirs\b|"
+    r"\brm -rf\b|\bmkdir -p\b|\bcp -r\b|\s>\s*[\"']?\$)")
+
 SKIP_DIRS = {".git", "site", "node_modules", "__pycache__"}
 DATA_SUFFIXES = {".toml", ".lua", ".json", ".md", ".png", ".jpg", ".jpeg", ".webp",
                  ".theme", ".conf", ".frag", ".txt", ".yml", ".yaml", ""}
@@ -170,17 +178,33 @@ def audit_surface(repo):
                 shebang = text.startswith("#!")
             except (OSError, UnicodeDecodeError):
                 text = ""
-            if not (executable or shebang):
+            # A file does not need an executable bit to be code. Omarchy hands
+            # every theme's hyprland.lua to a Lua interpreter on every config
+            # load, and hands every .frag to the GPU on every frame. Both are
+            # things that run on your machine, so both belong in this table --
+            # and the day a theme shipped one that writes a file, leaving them
+            # out would have made this page a lie by omission.
+            runtime = ""
+            parts = rel.split(os.sep)
+            if len(parts) > 2 and parts[0] == "themes":
+                if name == "hyprland.lua":
+                    runtime = "Lua, run by Hyprland at every config load"
+                elif name.endswith(".frag") or name.endswith(".frag.in"):
+                    runtime = "GLSL, run by the GPU on every frame"
+            if not (executable or shebang or runtime):
                 continue
             if os.path.splitext(name)[1] in {".png", ".jpg", ".jpeg", ".webp"}:
                 continue
-            hits = []
+            hits, writes = [], []
             for number, line in enumerate(text.splitlines(), 1):
+                stripped = line.strip()[:150]
                 if NETWORK_PATTERN.search(line):
-                    stripped = line.strip()
-                    hits.append((number, stripped[:150]))
+                    hits.append((number, stripped))
+                if WRITE_PATTERN.search(line):
+                    writes.append((number, stripped))
             executables.append({"path": rel, "exec_bit": executable,
-                                "shebang": shebang, "hits": hits})
+                                "shebang": shebang, "runtime": runtime,
+                                "hits": hits, "writes": writes})
     executables.sort(key=lambda e: e["path"])
     return executables
 
@@ -662,16 +686,21 @@ def render_surface(executables, commit):
     for entry in executables:
         hits = entry["hits"]
         total_hits += len(hits)
-        why = "executable bit" if entry["exec_bit"] else "shebang only"
-        if hits:
+        why = (entry.get("runtime")
+               or ("executable bit" if entry["exec_bit"] else "shebang only"))
+
+        def column(items, empty):
+            if not items:
+                return f'<span class="ok">{empty}</span>'
             detail = "".join(
-                f'<li><code>line {n}</code> {esc(text)}</li>' for n, text in hits)
-            net = (f'<details><summary>{len(hits)} match'
-                   f'{"es" if len(hits) != 1 else ""}</summary><ul>{detail}</ul></details>')
-        else:
-            net = '<span class="ok">none</span>'
+                f'<li><code>line {n}</code> {esc(t)}</li>' for n, t in items)
+            return (f'<details><summary>{len(items)} match'
+                    f'{"es" if len(items) != 1 else ""}</summary><ul>{detail}</ul></details>')
+
         rows.append(f'<tr><td><code>{esc(entry["path"])}</code></td>'
-                    f'<td class="dimcell">{why}</td><td>{net}</td></tr>')
+                    f'<td class="dimcell">{esc(why)}</td>'
+                    f'<td>{column(hits, "none")}</td>'
+                    f'<td>{column(entry.get("writes", []), "none")}</td></tr>')
 
     stamp = f' at <code>{esc(commit)}</code>' if commit else ""
     summary = (f"{len(executables)} file{'s' if len(executables) != 1 else ''} in this "
@@ -689,9 +718,10 @@ def render_surface(executables, commit):
     return f"""<div style="margin-top:30px">
 <p class="lede" style="max-width:76ch">{summary} {note}</p>
 <div class="tablewrap"><table class="surface">
-<thead><tr><th>File</th><th>Why it counts</th><th>Network scan</th></tr></thead>
+<thead><tr><th>File</th><th>Why it counts</th><th>Network scan</th><th>Writes scan</th></tr></thead>
 <tbody>{"".join(rows)}</tbody></table></div>
-<p class="scanline">Scan pattern: <code>{esc(NETWORK_PATTERN.pattern)}</code></p>
+<p class="scanline">Network pattern: <code>{esc(NETWORK_PATTERN.pattern)}</code></p>
+<p class="scanline">Writes pattern: <code>{esc(WRITE_PATTERN.pattern)}</code></p>
 </div>"""
 
 

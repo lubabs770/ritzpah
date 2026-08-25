@@ -1,0 +1,9 @@
+# Flyouts sit just off the sky rather than on it: a hair of transparency, so
+# the wallpaper and whatever the shader is doing to it stay faintly present
+# underneath.
+[popups]
+background       = "#080d1a"
+background-alpha = 0.96
+text             = "#d9dee8"
+border           = "hyprland.active-border"
+border-alpha     = 1.0

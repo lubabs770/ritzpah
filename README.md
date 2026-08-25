@@ -76,6 +76,27 @@ you do not freeze sections you did not mean to own.
 personal config always wins. A theme owns borders, rounding, blur, shadow and
 animations; gaps and per-window opacity belong to the human.
 
+### Live themes
+
+Most themes here are `kind: "static"` — a fixed set of colours that will look
+the same next year. A theme can also declare `kind: "live"`, meaning it derives
+itself from something outside the repo.
+
+[Lunation](themes/lunation) is the first, and it sets the shape. Two rules:
+
+- **A live theme does not get a timer.** Nothing here is allowed to install a
+  systemd unit, a cron entry or a shell hook — that would make the audit
+  surface below considerably less reassuring, and it is not necessary. Hyprland
+  already re-executes `hyprland.lua` on every config load, and already hands a
+  screen shader the wall clock on every frame. Both were already running.
+- **A live theme writes into the generated theme directory**
+  (`~/.local/state/omarchy/current/theme`), never into `~/.config/omarchy/themes`
+  and never into this repo. That directory is Omarchy's own working copy and is
+  rebuilt from scratch on every theme switch, so the committed version of the
+  file stays the proven fallback.
+
+`ritzpah list` prints the kind, read from `theme.json`.
+
 ## The gate
 
 Nothing here is ever updated after it is merged, which makes the merge the only
@@ -121,8 +142,13 @@ To make that cheap, the site publishes the **whole audit surface**, computed
 from the files at build time rather than written down once and left to rot:
 [every file in this repo that can execute](https://lubabs770.github.io/ritzpah/contributing.html#trust),
 why it counts as executable, and every line in it that mentions anything capable
-of reaching the network — false positives included, with the scan pattern shown
-so you can judge it rather than trust it.
+of reaching the network or of writing to your disk — false positives included,
+with both scan patterns shown so you can judge them rather than trust them.
+
+"Can execute" is not the same as "has an executable bit". Every theme's
+`hyprland.lua` is handed to a Lua interpreter by Hyprland on every config load,
+and every `.frag` is handed to your GPU on every frame. Both are listed, for
+every theme, whether or not they do anything interesting.
 
 That list is generated because it will keep changing. Themes are allowed to ship
 their own scripts, and a security claim frozen into a README is exactly the kind

@@ -8,10 +8,10 @@ description: Build, install, validate, and debug themes in the Ritzpah Omarchy t
 **READ THIS BEFORE YOU TOUCH ANYTHING, YOU MAGNIFICENT LITTLE GOBLIN.**
 
 Ritzpah is not a theme. Ritzpah is a **COLLECTION**. A menagerie. A zoo with the
-locks filed off. `lubabs770/ritzpah`, cloned at `~/code/ritzpah`, and every
+locks filed off. `lubabs770/ritzpah`, cloned at `~/ritzpah`, and every
 theme inside it is engineered to be seen from orbit.
 
-Six inhabitants, and the roster is authoritative in `./ritzpah list`, not here —
+Seven inhabitants, and the roster is authoritative in `./ritzpah list`, not here —
 if this section and the CLI disagree, the CLI is right and this file is stale:
 
 | Theme | Floor | Shader | What it is |
@@ -22,6 +22,7 @@ if this section and the CLI disagree, the CLI is right and this file is stale:
 | **cathode** | 4.5 | YES | amber phosphor, barrel distortion, 720 scanlines, aperture grille. Not themed like a CRT — *displayed on one*. |
 | **blueprint** | **7.0** | no | cyan-white ink on deep navy, drawn to a standard. The one you can work in all day. |
 | **casino-carpet** | 4.5 | no | the Las Vegas floor-covering recipe, applied without mercy. Generated carpets, six-stop spinning border. |
+| **lunation** | 4.5 | YES | the only `kind: "live"` theme. Computes where the Moon actually is over this machine and dresses the compositor in the answer. Borders point at it, shadows fall away from it, the disc crosses the desktop. |
 
 ---
 
@@ -286,18 +287,41 @@ output; change the script.
 ## PART SIX: THE PROMISE IN THE README
 
 The root `README.md` has a **"Don't trust me"** section that hands the reader a
-copy-pasteable prompt for auditing this repo with their own agent, and then makes
-a falsifiable claim to make that audit cheap:
+copy-pasteable prompt for auditing this repo with their own agent. It used to
+follow that with a hand-written claim about what executes. It no longer does,
+because a security claim frozen into a README is exactly the kind that quietly
+stops being true: `tools/ritzpah-site.py` now **computes** the audit surface at
+build time and publishes it, and the README only describes what that page
+contains.
 
-> the only things here that execute are `ritzpah`, `install`,
-> `tools/ritzpah-lib.py`, and `tools/make-backgrounds-*` ... **Nothing in this
-> repo makes a network request. Nothing runs on a schedule. Nothing runs at
-> shell startup.**
+`audit_surface()` lists every file that can execute, with two scans per file:
+one for anything that could reach the network, one for anything that writes to
+disk. "Can execute" deliberately includes files with no executable bit —
+`themes/*/hyprland.lua` is handed to a Lua interpreter by Hyprland at every
+config load, and `themes/*/*.frag` is handed to the GPU on every frame.
 
-**That paragraph is load-bearing and it is a promise.** The day anything here
-fetches a URL, adds a systemd timer, or grows a shell hook, that claim becomes a
-lie in the README of a repo whose whole pitch is "audit me". Amend it **in the
-same commit** that breaks it, or do not break it.
+**The load-bearing part is now the scan patterns, not the prose.** If you add a
+way for something to run or to write that neither `NETWORK_PATTERN` nor
+`WRITE_PATTERN` nor the executable/runtime test would catch, the page becomes a
+lie by omission. Widen the scan **in the same commit**, or do not do it.
+
+### Live themes have exactly two rules
+
+`kind: "live"` (see `THEME_JSON.md`, and `themes/lunation` for the worked
+example) means the theme derives itself from something outside the repo.
+
+1. **No timers.** No systemd unit, no cron entry, no shell hook, nothing at
+   login. Hyprland re-executes `hyprland.lua` on every config load and hands a
+   screen shader the wall clock on every frame; both are already running, and
+   between them they are enough. Lunation splits the work along exactly that
+   seam: the Lua bakes the linear part of a lunar ephemeris into the shader,
+   and the shader recomputes everything non-linear from `time`. Copy the shape.
+2. **Write into the generated theme directory only** —
+   `~/.local/state/omarchy/current/theme`, which Omarchy rebuilds from scratch
+   on every theme switch. Never `~/.config/omarchy/themes`, never the repo. The
+   committed version of the generated file stays the proven fallback, and
+   should be baked for somewhere obviously not-you (Lunation's is Greenwich at
+   noon on 1 January 2000) so that seeing it is a diagnosis.
 
 ---
 

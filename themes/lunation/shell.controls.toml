@@ -1,0 +1,34 @@
+# Control states as levels of illumination rather than as different colours.
+# Nothing at night is a different hue; it is a different amount of light.
+[controls]
+# Normal: earthshine. Present, second-hand, not asking for anything.
+normal-color        = "#9aa4b8"
+normal-fill-alpha   = 0.03
+normal-border       = "#8b93a8"
+normal-border-width = 1
+normal-border-alpha = 0.35
+
+# Hover: the same object, with the Moon out.
+hover-cursor-color        = "#d9dee8"
+hover-cursor-fill-alpha   = 0.07
+hover-cursor-border       = "#8fb4ff"
+hover-cursor-border-width = 1
+hover-cursor-border-alpha = 0.55
+
+# Focus: full Moon, overhead, no cloud. Deliberately louder than hover --
+# hover is where the mouse happens to be, focus is where the next keystroke
+# is going.
+focus-color        = "#f4f7fb"
+focus-fill-alpha   = 0.10
+focus-border       = "#cfe0f5"
+focus-border-width = 2
+focus-border-alpha = 1.0
+
+selected-color        = "#f4f7fb"
+selected-fill-alpha   = 0.16
+selected-border       = "#cfe0f5"
+selected-border-width = 1
+selected-border-alpha = 0.7
+
+pressed-fill-alpha   = 0.26
+selection-fill-alpha = 0.34

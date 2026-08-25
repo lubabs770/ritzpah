@@ -1,0 +1,57 @@
+# Lunation - the palette is not the Moon. The Moon is a rock; its albedo is
+# about 0.12 and its colour is the colour of a dirty parking lot. Painting a
+# terminal that colour would be honest and unbearable.
+#
+# So the palette is the SKY the Moon is in, and every ink slot below is a real
+# light source you can see at night, named where it comes from. The surfaces
+# are the sky between them.
+mode = "dark"
+
+# The Moon's own light, spectrally: sunlight, reddened a few percent by lunar
+# regolith and then run through however much atmosphere it is sitting behind.
+accent = "#cfe0f5"
+selection = "#1e2a44"
+# Earthshine. The ashen light on the dark limb, which is the Earth's daylight
+# reflected back off our own oceans and cloud. The dimmest thing here, and the
+# only one that is second-hand twice.
+muted = "#8b93a8"
+
+# Astronomical twilight and darker. Not black: a real night sky has airglow,
+# zodiacal light and unresolved stars in it, and it never reads as zero.
+background = "#05070e"
+dark_background = "#03050a"
+darker_background = "#010204"
+lighter_background = "#101524"
+
+foreground = "#d9dee8"
+dark_foreground = "#9aa4b8"
+light_foreground = "#e6eaf2"
+# Full Moon at the zenith on a clear night: about -12.7 magnitude, enough to
+# read by and enough to cast your shadow on the ground.
+bright_foreground = "#f4f7fb"
+
+# The eight hues are eight things overhead, at their real colours.
+red = "#ff8b7a"        # Antares. A red supergiant, spectral class M1.
+orange = "#ffab5e"     # Sodium-vapour skyglow, the 589 nm doublet, from town.
+yellow = "#ffd98a"     # Capella. G-type, the same class as the Sun.
+green = "#7fd6a2"      # Airglow. Excited atomic oxygen at 557.7 nm, 90 km up.
+cyan = "#7fd2d8"       # Vega, dragged toward the green line it sits next to.
+blue = "#8fb4ff"       # Rigel. B8, 12,000 K, the bluest thing most people see.
+magenta = "#d5a3e8"    # Aurora. Nitrogen emission at the bottom of the curtain.
+brown = "#c6a98a"      # The lunar highlands. Anorthosite, and the one slot here
+                       # that really is the colour of the rock.
+
+# Bright variants: the same source, higher in the sky and through less air.
+bright_red = "#ffada0"
+bright_yellow = "#ffe9b5"
+bright_green = "#a6e8c2"
+bright_cyan = "#a6e6ea"
+bright_blue = "#b3ccff"
+bright_magenta = "#e8c4f5"
+
+# The static fallback. hyprland.lua overrides both of these every time Hyprland
+# loads its config, with colours derived from where the Moon actually is -- but
+# if the Lua is not running, these are what you get: a full Moon, due south,
+# forty degrees up. A pleasant enough lie.
+hyprland_active_border = "rgba(cfe0f5ff) rgba(8fb4ffff) rgba(f4f7fbff) 285deg"
+hyprland_inactive_border = "rgba(1e2a44cc) rgba(101524cc) 285deg"
