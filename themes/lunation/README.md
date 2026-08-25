@@ -252,6 +252,44 @@ dim strength are all set by the Lua and cost nothing at all -- you keep a
 desktop that is lit from wherever the Moon actually is, refreshed whenever
 Hyprland reloads its config, at zero frames per second of overhead.
 
+## If the shader does not compile
+
+Worth knowing, because it is the one way this theme can hurt a machine rather
+than just warm it.
+
+`sky.frag` is generated, and it is generated on a machine whose GPU and driver
+nobody here has seen. A screen shader that fails to compile can be logged by
+the compositor **on every frame**, and this theme sets `damage_tracking = 0`,
+so "every frame" means sixty times a second — into `hyprland.log`, which lives
+in `/run/user/$UID`, which is a tmpfs capped at ten percent of your RAM and is
+neither rotated nor size-capped by anyone. A cosmetic bug becomes a full disk,
+and a full `/run/user` takes app launching down with it.
+
+So the Lua is careful in three specific ways:
+
+- It writes `sky.frag.new` and **renames** it into place. Hyprland reads that
+  file while applying the very config that writes it, so opening the real path
+  with `"w"` would truncate a file the compositor is about to read and hand it
+  half a shader. A rename on the same filesystem is atomic.
+- It **refuses to install a shader that is not whole** — one that lost its
+  `#version` line, or that failed to write completely. On refusal it does not
+  set `screen_shader` at all, and you get a theme with no melt and entirely
+  correct borders and shadows, which is a good failure.
+- Any constant it could not compute becomes a visible `/* unbaked KEY */ 0.0`
+  rather than an empty substitution, so the file stays valid GLSL and the
+  problem is legible in the file instead of in a log.
+
+None of that can catch a driver rejecting valid GLSL. If your desktop is
+sluggish and `/run/user/$UID` is filling, that is where to look, and the escape
+hatch below is the fix.
+
+**This is not a problem Lunation introduced.** Quickshell never removes the log
+directory of an instance that has died, and Hyprland does not rotate its log,
+so `/run/user` fills over days on any Omarchy install regardless of theme.
+Lunation is only unusually well placed to make it fast. Cleaning that up is a
+system-maintenance job and does not belong in a theme — see the two rules for
+live themes in the root [README](../../README.md#live-themes).
+
 ## Escape hatch
 
 ```bash
