@@ -1,0 +1,14 @@
+# The lock screen is the only surface here that is genuinely at night, and it
+# gets the darkest scrim in the theme for it.
+[lock]
+background       = "#050912"
+background-alpha = 0.82
+text             = "#e6eaf2"
+placeholder      = "#8b93a8"
+text-error       = "#ff8b7a"
+border           = "hyprland.active-border"
+border-active    = "hyprland.active-border"
+border-error     = "#ff8b7a"
+border-alpha     = 1.0
+selection        = "#cfe0f5"
+selection-alpha  = 0.42

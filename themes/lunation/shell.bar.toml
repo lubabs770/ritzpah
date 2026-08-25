@@ -1,0 +1,13 @@
+# The bar is the horizon: the one edge of the screen that is not sky. Opaque,
+# because the Moon is allowed to wash over the desktop and is not allowed to
+# wash over the clock.
+[bar]
+background       = "#03050a"
+background-alpha = 1.0
+text             = "#d9dee8"
+# Recording, alerts, updates. Antares, which is the only red anybody can find
+# in a night sky without help.
+active           = "#ff8b7a"
+scale-with-font  = true
+size-horizontal  = 26
+size-vertical    = 28

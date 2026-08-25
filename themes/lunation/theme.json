@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "slug": "lunation",
+  "kind": "live",
+  "name": "Lunation",
+  "tagline": "The real Moon, in its real place in your sky, recomputed every frame.",
+  "tags": [
+    "dark",
+    "shader",
+    "live",
+    "astronomy",
+    "blue"
+  ],
+  "contrast_floor": 4.5,
+  "generator": "tools/make-backgrounds-lunation",
+  "battery": "costs",
+  "notes": "hyprland.lua computes the Moon's altitude, azimuth, phase, distance and libration at every Hyprland config load and writes sky.frag from sky.frag.in. The shader carries the sky forward from `time` on the GPU, so nothing runs on a timer. Observer position comes from tzdata via /etc/localtime, overridable in ~/.config/omarchy/lunation.conf. Ephemeris is a truncation of Meeus 47, checked against his worked example 47.a."
+}

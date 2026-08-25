@@ -1,0 +1,6 @@
+[tooltip]
+background       = "#080d1a"
+background-alpha = 0.97
+text             = "#e6eaf2"
+border           = "hyprland.active-border-foreground"
+border-alpha     = 0.85

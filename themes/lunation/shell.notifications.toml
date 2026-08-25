@@ -1,0 +1,9 @@
+# A notification borrows the window border, which means it borrows the Moon:
+# the same gradient, at the same angle, pointing at the same place in the sky.
+[notifications]
+background       = "#080d1a"
+background-alpha = 0.97
+text             = "#e6eaf2"
+border           = "hyprland.active-border"
+border-alpha     = 1.0
+countdown        = "#cfe0f5"
