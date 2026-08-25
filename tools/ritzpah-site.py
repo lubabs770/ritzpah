@@ -98,6 +98,7 @@ def collect(repo, assets):
             "shader": info["shader"],
             "battery": declared.get("battery", ""),
             "notes": declared.get("notes", ""),
+            "generator": declared.get("generator", ""),
             "wallpapers": len(info["wallpapers"]),
             "sections": len(info["shell_sections"]),
             "background": report["background"],
@@ -109,6 +110,9 @@ def collect(repo, assets):
     return themes
 
 
+
+REPO = "https://github.com/lubabs770/ritzpah"
+
 AUDIT_PROMPT = """Audit this repo before I install it: https://github.com/lubabs770/ritzpah
 Clone it somewhere temporary and actually read it. Tell me:
 - what executes, and when - install time, every shell start, on a timer?
@@ -119,454 +123,608 @@ Clone it somewhere temporary and actually read it. Tell me:
 Quote the exact lines for anything you flag. If it's clean, say so plainly."""
 
 
+def esc(value):
+    return html.escape(str(value), quote=True)
+
+
+# --------------------------------------------------------------- stylesheet
+
 CSS = """
-*,*::before,*::after{box-sizing:border-box}
+/* Neutral shell. Theme pages override these six tokens inline, so the page a
+   theme lives on is drawn in that theme and nothing else has to change. */
 :root{
-  --bg:#0c0c10; --panel:#141419; --line:#26262f; --ink:#e8e8ef;
-  --dim:#9a9aab; --accent:#8b7fff; --accent-ink:#0c0c10;
-  --mono:ui-monospace,"JetBrainsMono Nerd Font","SFMono-Regular",Menlo,Consolas,monospace;
+  --bg:#0b0b0f; --panel:#131318; --line:#242430; --ink:#eaeaf2;
+  --dim:#9494a6; --accent:#7c6cff; --accent-ink:#0b0b0f;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,"JetBrainsMono Nerd Font",SFMono-Regular,Menlo,Consolas,monospace;
+  --rad:12px; --pad:clamp(20px,5vw,32px);
 }
+*,*::before,*::after{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 var(--mono);
-  transition:background .45s ease,color .45s ease}
-.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
-a{color:var(--accent);text-underline-offset:3px}
-h2{letter-spacing:-.02em}
-.eyebrow{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin:0 0 10px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 var(--sans);
+  -webkit-font-smoothing:antialiased}
+img{max-width:100%;height:auto;display:block}
+a{color:inherit}
+h1,h2,h3{letter-spacing:-.025em;line-height:1.1;margin:0}
+.wrap{width:100%;max-width:1160px;margin:0 auto;padding:0 var(--pad)}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);margin:0 0 14px}
+.lede{color:var(--dim);font-size:clamp(16px,2vw,19px);max-width:60ch}
 
-/* ---------------------------------------------------------------- hero */
-.hero{padding:86px 0 60px}
-.hero h1{margin:0;font-size:clamp(46px,13vw,132px);letter-spacing:-.05em;line-height:.9}
-.hero h1 .dot{color:var(--accent)}
-.hero .lede{margin:20px 0 0;font-size:clamp(17px,2.6vw,23px);max-width:34ch;line-height:1.45}
-.hero .lede em{font-style:normal;color:var(--accent)}
-.stats{margin:34px 0 0;display:flex;flex-wrap:wrap;gap:34px}
-.stats div{min-width:96px}
-.stats dt{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
-.stats dd{margin:4px 0 0;font-size:27px;letter-spacing:-.02em}
-.cta{margin:34px 0 0;display:flex;gap:10px;flex-wrap:wrap}
-.btn{display:inline-block;border:1px solid var(--line);border-radius:8px;padding:11px 18px;
-  font-size:14px;text-decoration:none;color:var(--ink);transition:all .2s ease}
-.btn:hover{border-color:var(--ink)}
-.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+/* ------------------------------------------------------------------- nav */
+.nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.nav-in{display:flex;align-items:center;gap:26px;height:62px}
+.brand{font:600 18px/1 var(--mono);letter-spacing:-.02em;text-decoration:none;
+  display:flex;align-items:center;gap:2px}
+.brand i{color:var(--accent);font-style:normal}
+.nav-links{display:flex;gap:22px;margin-left:auto;align-items:center}
+.nav-links a{font-size:14.5px;color:var(--dim);text-decoration:none;transition:color .15s}
+.nav-links a:hover,.nav-links a[aria-current]{color:var(--ink)}
+@media(max-width:640px){.nav-links a.hide-sm{display:none}}
 
-/* ---------------------------------------------------------------- rail */
-nav.rail{position:sticky;top:0;z-index:9;background:var(--bg);border-top:1px solid var(--line);
-  border-bottom:1px solid var(--line);padding:11px 0;transition:background .45s ease}
-.rail-inner{display:flex;gap:8px;overflow-x:auto;scrollbar-width:thin;align-items:center}
-.chip{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--dim);
-  font:13px/1 var(--mono);padding:9px 13px;border-radius:999px;cursor:pointer;
-  white-space:nowrap;transition:all .2s ease;text-decoration:none}
-.chip:hover{color:var(--ink);border-color:var(--ink)}
-.chip[aria-pressed="true"],.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.chip .sw{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:1px}
-.rail-sep{flex:0 0 auto;width:1px;height:22px;background:var(--line);margin:0 4px}
+/* ----------------------------------------------------------------- button */
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);
+  border-radius:9px;padding:11px 18px;font-size:14.5px;font-weight:500;
+  text-decoration:none;color:var(--ink);background:transparent;cursor:pointer;
+  font-family:inherit;transition:border-color .16s,background .16s,transform .16s}
+.btn:hover{border-color:var(--ink);transform:translateY(-1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.sm{padding:8px 14px;font-size:13.5px}
 
-/* ------------------------------------------------------------- catalog */
-section{border-bottom:1px solid var(--line)}
-.catalog{padding:56px 0}
-.catalog h2{margin:0;font-size:clamp(24px,4.6vw,40px)}
-.catalog .note{margin:8px 0 0;color:var(--dim);max-width:64ch}
-.filters{margin:26px 0 22px;display:flex;flex-wrap:wrap;gap:7px;align-items:center}
-.filters .lbl{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-right:4px}
-.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(305px,1fr))}
-.card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel);
-  text-decoration:none;color:inherit;display:flex;flex-direction:column;transition:transform .18s ease,border-color .18s ease}
-.card:hover{transform:translateY(-3px);border-color:var(--accent)}
-.card img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;border-bottom:1px solid var(--line)}
-.card .body{padding:15px 16px 17px;flex:1;display:flex;flex-direction:column;gap:9px}
-.card h3{margin:0;font-size:19px;letter-spacing:-.01em}
-.card p{margin:0;font-size:13.5px;color:var(--dim);line-height:1.55;flex:1}
-.card .strip{display:flex;height:9px;border-radius:3px;overflow:hidden}
-.card .strip i{flex:1}
-.card .meta{display:flex;gap:9px;flex-wrap:wrap;font-size:11.5px;color:var(--dim)}
+/* ------------------------------------------------------------------ hero */
+.hero{padding:clamp(64px,11vw,116px) 0 clamp(48px,7vw,76px)}
+.hero-grid{display:grid;gap:clamp(34px,6vw,64px);align-items:center;
+  grid-template-columns:minmax(0,1fr)}
+@media(min-width:940px){.hero-grid{grid-template-columns:minmax(0,1.02fr) minmax(0,1fr)}}
+.hero h1{font-size:clamp(42px,7.2vw,74px)}
+.hero h1 i{color:var(--accent);font-style:normal}
+.hero .lede{margin:20px 0 0}
+.hero .actions{margin:30px 0 0;display:flex;gap:11px;flex-wrap:wrap}
+.hero-shot{border:1px solid var(--line);border-radius:var(--rad);overflow:hidden;
+  box-shadow:0 24px 64px -32px rgba(0,0,0,.9)}
+.hero-shot img{width:100%;aspect-ratio:16/10;object-fit:cover;object-position:top left}
+.hero-shot figcaption{border-top:1px solid var(--line);background:var(--panel);
+  padding:11px 15px;font:13px/1.4 var(--mono);color:var(--dim);
+  display:flex;justify-content:space-between;gap:12px}
+
+/* ------------------------------------------------------------------ band */
+.band{border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  background:var(--panel)}
+.band-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.band-in div{padding:24px var(--pad);border-right:1px solid var(--line)}
+.band-in div:last-child{border-right:0}
+.band dt{font:500 11.5px/1 var(--mono);letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+.band dd{margin:8px 0 0;font-size:clamp(24px,3.4vw,32px);letter-spacing:-.03em}
+
+/* --------------------------------------------------------------- sections */
+.sec{padding:clamp(56px,8vw,92px) 0}
+.sec + .sec{border-top:1px solid var(--line)}
+.sec-head{max-width:64ch;margin:0 0 clamp(30px,4vw,44px)}
+.sec-head h2{font-size:clamp(27px,4vw,40px)}
+.sec-head p{margin:14px 0 0;color:var(--dim)}
+.sec-head.row{max-width:none;display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap}
+
+/* --------------------------------------------------------------- features */
+.feats{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.feat{border:1px solid var(--line);border-radius:var(--rad);padding:24px;background:var(--panel)}
+.feat h3{font-size:17.5px;margin:0 0 9px}
+.feat p{margin:0;color:var(--dim);font-size:14.5px;line-height:1.6}
+.feat .ico{font:600 13px/1 var(--mono);color:var(--accent);margin-bottom:15px;display:block}
+
+/* ----------------------------------------------------------------- cards */
+.cards{list-style:none;margin:0;padding:0;display:grid;gap:18px;
+  grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
+.card{border:1px solid var(--line);border-radius:var(--rad);overflow:hidden;
+  background:var(--panel);transition:border-color .16s,transform .16s}
+.card:hover{border-color:var(--accent);transform:translateY(-3px)}
+.card a{text-decoration:none;display:flex;flex-direction:column;height:100%}
+.card .shot{aspect-ratio:16/9;object-fit:cover;object-position:top left;width:100%;border-bottom:1px solid var(--line)}
+.card .body{padding:17px 18px 19px;display:flex;flex-direction:column;gap:11px;flex:1}
+.card h3{font-size:18.5px}
+.card .desc{margin:0;color:var(--dim);font-size:14px;line-height:1.55;flex:1}
+.strip{display:flex;height:8px;border-radius:99px;overflow:hidden}
+.strip i{flex:1}
+.card .meta{display:flex;gap:14px;flex-wrap:wrap;font:12.5px/1 var(--mono);color:var(--dim)}
 .card .meta b{font-weight:400;color:var(--ink)}
 .card[hidden]{display:none}
 
-/* -------------------------------------------------------------- detail */
-.theme{padding:56px 0}
-.theme h2{margin:0;font-size:clamp(26px,5vw,44px)}
-.theme .tag{margin:9px 0 0;color:var(--dim);max-width:64ch}
-.tags{margin:14px 0 0;display:flex;flex-wrap:wrap;gap:6px}
-.tags span{font-size:12px;color:var(--dim);border:1px solid var(--line);padding:3px 9px;border-radius:999px}
-figure{margin:26px 0 0}
-figure img{width:100%;height:auto;display:block;border:1px solid var(--line);border-radius:10px}
-figcaption{margin-top:8px;font-size:12.5px;color:var(--dim)}
-.facts{margin:26px 0 0;display:grid;gap:1px;background:var(--line);border:1px solid var(--line);
-  border-radius:10px;overflow:hidden;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
-.facts div{background:var(--panel);padding:14px 16px}
-.facts dt{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
-.facts dd{margin:5px 0 0;font-size:19px}
-.swatches{margin:26px 0 0;display:grid;gap:8px;grid-template-columns:repeat(auto-fill,minmax(132px,1fr))}
-.sw-card{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
-.sw-chip{height:52px}
-.sw-meta{padding:8px 10px;font-size:11.5px;line-height:1.45}
-.sw-name{color:var(--ink);word-break:break-all}
-.sw-num{color:var(--dim)}
-.sw-num.under{color:#ff6b6b}
-.sw-num.xmpt{color:#e8b04b}
+/* --------------------------------------------------------------- filters */
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 26px;align-items:center}
+.filters .lbl{font:500 11.5px/1 var(--mono);letter-spacing:.11em;text-transform:uppercase;
+  color:var(--dim);margin-right:5px}
+.pill{border:1px solid var(--line);background:transparent;color:var(--dim);
+  font:13.5px/1 var(--sans);padding:8px 14px;border-radius:99px;cursor:pointer;
+  transition:all .16s}
+.pill:hover{color:var(--ink);border-color:var(--ink)}
+.pill.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 
-.cmd{margin:26px 0 0;display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
-.cmd code{flex:1 1 320px;background:var(--panel);border:1px solid var(--line);border-radius:8px;
-  padding:13px 15px;font-size:13.5px;overflow-x:auto;white-space:pre}
-.cmd button{border:1px solid var(--line);background:transparent;color:var(--dim);
-  font:13px/1 var(--mono);padding:0 16px;border-radius:8px;cursor:pointer}
-.cmd button:hover{color:var(--ink);border-color:var(--ink)}
+/* ------------------------------------------------------------ theme page */
+.t-hero{padding:clamp(40px,6vw,64px) 0 0}
+.crumb{font:13.5px/1 var(--mono);color:var(--dim);text-decoration:none;
+  display:inline-flex;gap:7px;margin-bottom:24px}
+.crumb:hover{color:var(--ink)}
+.t-hero h1{font-size:clamp(36px,6vw,58px)}
+.t-hero .lede{margin:16px 0 0}
+.tags{display:flex;flex-wrap:wrap;gap:7px;margin:20px 0 0}
+.tags span{font:12.5px/1 var(--mono);color:var(--dim);border:1px solid var(--line);
+  padding:6px 11px;border-radius:99px}
+.t-shot{margin:clamp(30px,4vw,44px) 0 0;border:1px solid var(--line);
+  border-radius:var(--rad);overflow:hidden}
+.t-shot img{width:100%}
+.t-shot figcaption{border-top:1px solid var(--line);background:var(--panel);
+  padding:12px 16px;font:13px/1.4 var(--mono);color:var(--dim)}
+.facts{margin:0;display:grid;gap:1px;background:var(--line);border:1px solid var(--line);
+  border-radius:var(--rad);overflow:hidden;grid-template-columns:repeat(auto-fit,minmax(148px,1fr))}
+.facts div{background:var(--panel);padding:17px 18px}
+.facts dt{font:500 11.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.facts dd{margin:7px 0 0;font-size:21px;letter-spacing:-.02em}
+.swatches{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(136px,1fr))}
+.sw{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel)}
+.sw .chip{height:56px}
+.sw .m{padding:9px 11px;font:11.5px/1.5 var(--mono)}
+.sw .n{color:var(--ink);word-break:break-all}
+.sw .r{color:var(--dim)}
+.sw .r.under{color:#ff6b6b}
+.sw .r.xmpt{color:#e8b04b}
+.pager{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  border-top:1px solid var(--line);padding:28px 0 0;margin-top:8px}
+.pager a{font:14px/1.4 var(--mono);color:var(--dim);text-decoration:none;max-width:46%}
+.pager a:hover{color:var(--ink)}
+.pager a b{display:block;color:var(--ink);font-weight:500;margin-top:5px;font-size:16px}
 
-/* --------------------------------------------------------- contributing */
-.contrib{padding:56px 0}
-.contrib h2{margin:0 0 10px;font-size:clamp(24px,4.6vw,40px)}
-.contrib p{max-width:70ch;color:var(--dim)}
-.contrib p strong{color:var(--ink);font-weight:400}
-.steps{margin:30px 0 0;padding:0;list-style:none;counter-reset:step;
-  display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(275px,1fr))}
-.steps li{counter-increment:step;border:1px solid var(--line);border-radius:10px;
-  background:var(--panel);padding:16px 17px}
-.steps li::before{content:counter(step,decimal-leading-zero);display:block;
-  font-size:11.5px;letter-spacing:.12em;color:var(--accent);margin-bottom:7px}
-.steps h4{margin:0 0 6px;font-size:15px;font-weight:400;color:var(--ink)}
-.steps p{margin:0;font-size:13.5px;color:var(--dim);line-height:1.55;max-width:none}
-.steps code{font-size:12.5px;color:var(--ink)}
-.rulebox{margin:30px 0 0;border-left:2px solid var(--accent);padding:2px 0 2px 17px}
-.rulebox p{margin:0;color:var(--ink)}
-.rulebox p + p{margin-top:10px;color:var(--dim)}
+/* ------------------------------------------------------------------ code */
+.cmd{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+.cmd pre{flex:1 1 300px;margin:0;background:var(--panel);border:1px solid var(--line);
+  border-radius:9px;padding:15px 17px;font:13.5px/1.7 var(--mono);overflow-x:auto}
+.cmd .btn{flex:0 0 auto}
+code{font-family:var(--mono);font-size:.93em}
+.steps{list-style:none;counter-reset:s;margin:0;padding:0;display:grid;gap:16px;
+  grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}
+.steps li{counter-increment:s;border:1px solid var(--line);border-radius:var(--rad);
+  padding:22px;background:var(--panel)}
+.steps li::before{content:counter(s,decimal-leading-zero);display:block;
+  font:600 12px/1 var(--mono);color:var(--accent);margin-bottom:12px;letter-spacing:.1em}
+.steps h3{font-size:16.5px;margin:0 0 8px}
+.steps p{margin:0;color:var(--dim);font-size:14px;line-height:1.6}
+.note-box{border-left:2px solid var(--accent);padding:4px 0 4px 18px;margin:0}
+.note-box p{margin:0;max-width:68ch}
+.note-box p + p{margin-top:11px;color:var(--dim)}
 
-/* --------------------------------------------------------------- trust */
-.trust{padding:56px 0}
-.trust h2{margin:0 0 12px;font-size:clamp(22px,4vw,34px)}
-.trust p{max-width:70ch;color:var(--dim)}
-.trust pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-  padding:16px 18px;overflow-x:auto;font-size:13px;line-height:1.6;color:var(--ink)}
-.claim{border-left:2px solid var(--accent);padding-left:17px;margin:22px 0;color:var(--ink)}
-
-footer{border:0;padding:34px 0 64px;color:var(--dim);font-size:13.5px}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
+/* ---------------------------------------------------------------- footer */
+footer{border-top:1px solid var(--line);padding:52px 0 64px;background:var(--panel)}
+.f-grid{display:grid;gap:32px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.f-grid h4{margin:0 0 13px;font:500 11.5px/1 var(--mono);letter-spacing:.11em;
+  text-transform:uppercase;color:var(--dim)}
+.f-grid ul{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.f-grid a{font-size:14.5px;color:var(--dim);text-decoration:none}
+.f-grid a:hover{color:var(--ink)}
+.f-base{margin-top:44px;padding-top:24px;border-top:1px solid var(--line);
+  display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  font-size:13.5px;color:var(--dim)}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
 """
 
 JS = """
-const THEMES = __DATA__;
-const byId = Object.fromEntries(THEMES.map(t => [t.slug, t]));
-
-function apply(slug){
-  const t = byId[slug];
-  if(!t) return;
-  const c = t.colours, r = document.documentElement.style;
-  r.setProperty('--bg', t.background);
-  r.setProperty('--panel', c.lighter_background || c.dark_background || t.background);
-  r.setProperty('--line', c.selection || c.muted || '#333');
-  r.setProperty('--ink', c.foreground || '#eee');
-  r.setProperty('--dim', c.dark_foreground || c.muted || '#999');
-  r.setProperty('--accent', c.accent || c.cyan || '#8b7fff');
-  r.setProperty('--accent-ink', t.background);
-  document.querySelectorAll('.chip[data-slug]').forEach(b =>
-    b.setAttribute('aria-pressed', String(b.dataset.slug === slug)));
-}
-
-document.querySelectorAll('.chip[data-slug]').forEach(b => {
-  b.addEventListener('click', () => {
-    apply(b.dataset.slug);
-    document.getElementById(b.dataset.slug).scrollIntoView({block:'start'});
-  });
-});
-
-// Reading about a theme paints the page in it. It is the only honest way to
-// show a palette on a web page, and it is cheaper than six screenshots.
-const seen = new IntersectionObserver(entries => {
-  const top = entries.filter(e => e.isIntersecting)
-                     .sort((a,b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-  if(top) apply(top.target.id);
-}, {rootMargin:'-45% 0px -45% 0px'});
-document.querySelectorAll('section.theme').forEach(s => seen.observe(s));
-
-// Catalog filter. Nothing is removed from the DOM, so a filtered-out card is
-// still findable by the browser's own search.
+// Catalog filter. Cards are hidden, never removed, so find-in-page still works.
 const cards = [...document.querySelectorAll('.card')];
 document.querySelectorAll('[data-filter]').forEach(btn => {
   btn.addEventListener('click', () => {
     const tag = btn.dataset.filter;
     document.querySelectorAll('[data-filter]').forEach(b => b.classList.toggle('on', b === btn));
-    cards.forEach(c => {
-      c.hidden = tag !== '*' && !c.dataset.tags.split(' ').includes(tag);
-    });
+    cards.forEach(c => { c.hidden = tag !== '*' && !c.dataset.tags.split(' ').includes(tag); });
   });
 });
 
 document.querySelectorAll('[data-copy]').forEach(b => {
   b.addEventListener('click', async () => {
     const text = document.getElementById(b.dataset.copy).textContent;
-    try { await navigator.clipboard.writeText(text); } catch(e){ return; }
-    const was = b.textContent; b.textContent = 'copied';
+    try { await navigator.clipboard.writeText(text); } catch (e) { return; }
+    const was = b.textContent; b.textContent = 'Copied';
     setTimeout(() => { b.textContent = was; }, 1400);
   });
 });
-
-if(THEMES.length) apply(THEMES[0].slug);
 """
 
 
-def esc(value):
-    return html.escape(str(value), quote=True)
+# ------------------------------------------------------------------ chrome
+
+def palette_vars(theme):
+    """The six tokens that make a page wear a theme."""
+    c = theme["colours"]
+    return ";".join([
+        f'--bg:{theme["background"]}',
+        f'--panel:{c.get("lighter_background") or c.get("dark_background") or theme["background"]}',
+        f'--line:{c.get("selection") or c.get("muted") or "#333"}',
+        f'--ink:{c.get("foreground") or "#eee"}',
+        f'--dim:{c.get("dark_foreground") or c.get("muted") or "#999"}',
+        f'--accent:{c.get("accent") or c.get("cyan") or "#7c6cff"}',
+        f'--accent-ink:{theme["background"]}',
+    ])
 
 
-REPO = "https://github.com/lubabs770/ritzpah"
-
-
-def render_hero(themes):
-    walls = sum(t["wallpapers"] for t in themes)
-    slots = themes[0]["slots"] and len(themes[0]["slots"]) or 0
-    shaders = sum(1 for t in themes if t["shader"])
-    stats = [
-        ("themes", len(themes)),
-        ("wallpapers", walls),
-        ("downloaded", 0),
-        ("ink slots each", slots),
-        ("shader themes", shaders),
-    ]
-    cells = "".join(f"<div><dt>{esc(k)}</dt><dd>{esc(v)}</dd></div>" for k, v in stats)
-    return f"""<section class="hero"><div class="wrap">
-<h1>RITZPAH<span class="dot">.</span></h1>
-<p class="lede">Omarchy themes. <em>Loud ones.</em> Every wallpaper generated
-from a script, never downloaded &mdash; and this page is wearing whichever
-theme you are reading about.</p>
-<dl class="stats">{cells}</dl>
-<div class="cta">
-<a class="btn primary" href="#catalog">Browse the catalog</a>
-<a class="btn" href="#contributing">Add a theme</a>
-<a class="btn" href="{REPO}">Source</a>
-</div>
-</div></section>"""
-
-
-def render_rail(themes):
-    chips = "".join(
-        f'<button class="chip" data-slug="{esc(t["slug"])}" aria-pressed="false">'
-        f'<span class="sw" style="background:{esc(t["colours"].get("accent", "#888"))}"></span>'
-        f'{esc(t["name"])}</button>'
-        for t in themes
-    )
-    return f"""<nav class="rail"><div class="wrap"><div class="rail-inner">
-<a class="chip" href="#catalog">Catalog</a>
-<a class="chip" href="#contributing">Contribute</a>
-<span class="rail-sep"></span>{chips}
+def nav(active, depth=0):
+    up = "../" * depth
+    def link(href, label, key, small=False):
+        cur = ' aria-current="page"' if key == active else ""
+        cls = ' class="hide-sm"' if small else ""
+        return f'<a href="{up}{href}"{cur}{cls}>{label}</a>'
+    return f"""<nav class="nav"><div class="wrap nav-in">
+<a class="brand" href="{up}index.html">ritzpah<i>.</i></a>
+<div class="nav-links">
+{link("catalog.html", "Themes", "catalog")}
+{link("contributing.html", "Contribute", "contributing")}
+{link("contributing.html#trust", "Security", "trust", True)}
+<a href="{REPO}">GitHub</a>
+<a class="btn primary sm" href="{up}catalog.html">Browse</a>
 </div></div></nav>"""
+
+
+def footer(themes, depth=0):
+    up = "../" * depth
+    theme_links = "".join(
+        f'<li><a href="{up}themes/{t["slug"]}.html">{esc(t["name"])}</a></li>' for t in themes)
+    return f"""<footer><div class="wrap">
+<div class="f-grid">
+<div><h4>Ritzpah</h4><ul>
+<li><a href="{up}index.html">Home</a></li>
+<li><a href="{up}catalog.html">All themes</a></li>
+<li><a href="{up}contributing.html">Contribute</a></li>
+<li><a href="{up}contributing.html#trust">Security</a></li>
+</ul></div>
+<div><h4>Themes</h4><ul>{theme_links}</ul></div>
+<div><h4>Source</h4><ul>
+<li><a href="{REPO}">Repository</a></li>
+<li><a href="{REPO}/blob/main/THEME_JSON.md">theme.json schema</a></li>
+<li><a href="{REPO}/blob/main/RITZPAH_SKILL.md">Build guide</a></li>
+<li><a href="{REPO}/issues/new">Open an issue</a></li>
+</ul></div>
+</div>
+<div class="f-base"><span>MIT. Built for Omarchy.</span>
+<span>Every contrast figure measured from <code>colors.toml</code> at build time.</span></div>
+</div></footer>"""
+
+
+def page(title, description, body, active, depth=0, palette=""):
+    up = "../" * depth
+    style = f' style="{palette}"' if palette else ""
+    return f"""<!doctype html>
+<html lang="en"{style}><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{esc(title)}</title>
+<meta name="description" content="{esc(description)}">
+<meta property="og:title" content="{esc(title)}">
+<meta property="og:description" content="{esc(description)}">
+<meta name="color-scheme" content="dark">
+<link rel="stylesheet" href="{up}assets/site.css">
+</head><body>
+{nav(active, depth)}
+{body}
+<script src="{up}assets/site.js" defer></script>
+</body></html>
+"""
+
+
+# ------------------------------------------------------------ page bodies
+
+def card(theme, depth=0):
+    up = "../" * depth
+    strip = "".join(
+        f'<i style="background:{esc(c)}"></i>'
+        for c in [theme["colours"].get(k) for k in
+                  ("red", "orange", "yellow", "green", "cyan", "blue", "magenta", "accent")]
+        if c)
+    thumb = theme["assets"].get("thumb") or theme["assets"].get("preview")
+    img = (f'<img class="shot" loading="lazy" src="{up}assets/{esc(thumb)}" '
+           f'alt="{esc(theme["name"])} desktop">' if thumb else "")
+    worst = theme["slots"][0]["ratio"] if theme["slots"] else "-"
+    meta = (f'<span>floor <b>{esc(theme["floor"])}:1</b></span>'
+            f'<span>worst <b>{esc(worst)}:1</b></span>'
+            f'<span>walls <b>{esc(theme["wallpapers"])}</b></span>'
+            + ("<span><b>shader</b></span>" if theme["shader"] else ""))
+    return (f'<li class="card" data-tags="{esc(" ".join(theme["tags"]))}">'
+            f'<a href="{up}themes/{esc(theme["slug"])}.html">{img}'
+            f'<div class="body"><h3>{esc(theme["name"])}</h3>'
+            f'<div class="strip">{strip}</div>'
+            f'<p class="desc">{esc(theme["tagline"])}</p>'
+            f'<div class="meta">{meta}</div></div></a></li>')
+
+
+FEATURES = [
+    ("01", "Generated, never downloaded",
+     "Every wallpaper is built from plasma noise, gradients and drawing primitives by a "
+     "script that ships with the theme. The recipe is the deliverable, so there is no "
+     "licence to chase and no provenance to explain."),
+    ("02", "Contrast measured, not claimed",
+     "Each theme declares a WCAG floor and every ink slot is measured against it at build "
+     "time. A slot allowed below the floor names itself and says why. Nothing on this site "
+     "was typed by hand."),
+    ("03", "One command, nothing clever",
+     "Themes are copied into Omarchy's own themes directory. No symlinks, no daemon, no "
+     "plugin in your shell process. Delete the folder and it is gone."),
+]
+
+
+def render_landing(themes):
+    lead = next((t for t in themes if t["slug"] == "blueprint"), themes[0])
+    walls = sum(t["wallpapers"] for t in themes)
+    stats = [("Themes", len(themes)), ("Wallpapers", walls), ("Downloaded", 0),
+             ("Ink slots each", len(themes[0]["slots"])),
+             ("Shader themes", sum(1 for t in themes if t["shader"]))]
+    band = "".join(f"<div><dt>{esc(k)}</dt><dd>{esc(v)}</dd></div>" for k, v in stats)
+    feats = "".join(
+        f'<div class="feat"><span class="ico">{n}</span><h3>{esc(t)}</h3><p>{esc(b)}</p></div>'
+        for n, t, b in FEATURES)
+    featured = "".join(card(t) for t in themes[:3])
+    shot = lead["assets"].get("preview")
+    hero_shot = (f'<figure class="hero-shot"><img src="assets/{esc(shot)}" '
+                 f'alt="{esc(lead["name"])} desktop" width="1600" height="1000">'
+                 f'<figcaption><span>{esc(lead["name"])}</span>'
+                 f'<span>{esc(lead["floor"])}:1 floor</span></figcaption></figure>'
+                 if shot else "")
+
+    body = f"""
+<header class="hero"><div class="wrap hero-grid">
+<div>
+<p class="eyebrow">Omarchy theme collection</p>
+<h1>Desktop themes that are not trying to be tasteful<i>.</i></h1>
+<p class="lede">{len(themes)} themes for Omarchy, each one built to be seen from across
+the room. Generated wallpapers, measured contrast, and a one-line install that
+copies files and does nothing else.</p>
+<div class="actions">
+<a class="btn primary" href="catalog.html">Browse {len(themes)} themes</a>
+<a class="btn" href="#install">How to install</a>
+</div>
+</div>
+{hero_shot}
+</div></header>
+
+<div class="band"><div class="band-in">{band}</div></div>
+
+<section class="sec"><div class="wrap">
+<div class="sec-head"><p class="eyebrow">Why this exists</p>
+<h2>Loud, but not careless</h2>
+<p>A theme being obnoxious on purpose is not an excuse for it to be sloppy
+underneath. These are the three rules the whole collection is held to.</p></div>
+<div class="feats">{feats}</div>
+</div></section>
+
+<section class="sec"><div class="wrap">
+<div class="sec-head row">
+<div><p class="eyebrow">The roster</p><h2>Start with these three</h2></div>
+<a class="btn" href="catalog.html">See all {len(themes)}</a>
+</div>
+<ul class="cards">{featured}</ul>
+</div></section>
+
+<section class="sec" id="install"><div class="wrap">
+<div class="sec-head"><p class="eyebrow">Getting started</p>
+<h2>Installed in three commands</h2>
+<p>Omarchy's own <code>omarchy theme install</code> expects one repository per
+theme, so this collection ships its own small CLI instead.</p></div>
+<ol class="steps">
+<li><h3>Clone it</h3><p>The repository is the source of truth. Nothing is fetched
+at runtime and nothing phones home.</p></li>
+<li><h3>Pick a theme</h3><p><code>./ritzpah list</code> prints the roster with
+its measured contrast. <code>./ritzpah install &lt;name&gt;</code> copies one in.</p></li>
+<li><h3>Switch to it</h3><p><code>omarchy theme set &lt;name&gt;</code>. Installing
+never switches on its own, so stocking the shelf cannot change your desktop.</p></li>
+</ol>
+<div class="cmd" style="margin-top:24px">
+<pre id="quick">git clone {REPO}.git
+cd ritzpah &amp;&amp; ./ritzpah list
+./ritzpah install blueprint --set</pre>
+<button class="btn" data-copy="quick">Copy</button>
+</div>
+</div></section>
+
+<section class="sec"><div class="wrap">
+<div class="sec-head"><p class="eyebrow">Contributing</p>
+<h2>Add your own</h2>
+<p>Nothing here is ever updated after it is merged, which makes the merge the
+only moment a theme can be made right. The gate is strict; everything else is
+not.</p></div>
+<div class="actions" style="display:flex;gap:11px;flex-wrap:wrap">
+<a class="btn primary" href="contributing.html">Read the guide</a>
+<a class="btn" href="contributing.html#trust">Audit this repo first</a>
+</div>
+</div></section>
+"""
+    return page("Ritzpah — Omarchy themes. Loud ones.",
+                f"{len(themes)} Omarchy desktop themes with generated wallpapers and "
+                f"measured contrast. Install with one command.",
+                body + footer(themes), "home")
 
 
 def render_catalog(themes):
     tags = sorted({tag for t in themes for tag in t["tags"]})
-    filters = '<span class="lbl">filter</span>' + \
-        '<button class="chip on" data-filter="*">all</button>' + \
-        "".join(f'<button class="chip" data-filter="{esc(tag)}">{esc(tag)}</button>' for tag in tags)
-
-    cards = []
-    for t in themes:
-        strip = "".join(
-            f'<i style="background:{esc(c)}"></i>'
-            for c in [t["colours"].get(k) for k in
-                      ("red", "orange", "yellow", "green", "cyan", "blue", "magenta", "accent")]
-            if c
-        )
-        thumb = t["assets"].get("thumb") or t["assets"].get("preview")
-        img = (f'<img loading="lazy" src="assets/{esc(thumb)}" alt="{esc(t["name"])}">'
-               if thumb else "")
-        worst = t["slots"][0]["ratio"] if t["slots"] else "-"
-        meta = (f'<span>floor <b>{esc(t["floor"])}:1</b></span>'
-                f'<span>worst <b>{esc(worst)}:1</b></span>'
-                f'<span>walls <b>{esc(t["wallpapers"])}</b></span>'
-                + ("<span><b>shader</b></span>" if t["shader"] else ""))
-        cards.append(
-            f'<a class="card" href="#{esc(t["slug"])}" data-tags="{esc(" ".join(t["tags"]))}">'
-            f'{img}<div class="body"><h3>{esc(t["name"])}</h3>'
-            f'<div class="strip">{strip}</div>'
-            f'<p>{esc(t["tagline"])}</p>'
-            f'<div class="meta">{meta}</div></div></a>')
-
-    return f"""<section class="catalog" id="catalog"><div class="wrap">
-<p class="eyebrow">The roster</p>
+    filters = ('<span class="lbl">Filter</span>'
+               '<button class="pill on" data-filter="*">All</button>'
+               + "".join(f'<button class="pill" data-filter="{esc(x)}">{esc(x)}</button>'
+                         for x in tags))
+    body = f"""
+<section class="sec"><div class="wrap">
+<div class="sec-head"><p class="eyebrow">The roster</p>
 <h2>{len(themes)} themes, none of them subtle</h2>
-<p class="note">Every number below was measured from that theme's
-<code>colors.toml</code> when this page was built, not typed by hand. Pick one
-to see its full palette, its wallpapers, and what it costs you.</p>
+<p>Every figure on these cards was measured from that theme's
+<code>colors.toml</code> when this page was built. Open one for its full palette,
+its wallpapers and what it costs you.</p></div>
 <div class="filters">{filters}</div>
-<div class="grid">{"".join(cards)}</div>
-</div></section>"""
-
-
-def render_theme(theme):
-    parts = [f'<section class="theme" id="{esc(theme["slug"])}"><div class="wrap">']
-    parts.append(f'<h2>{esc(theme["name"])}</h2>')
-    if theme["tagline"]:
-        parts.append(f'<p class="tag">{esc(theme["tagline"])}</p>')
-    if theme["tags"]:
-        chips = "".join(f"<span>{esc(tag)}</span>" for tag in theme["tags"])
-        parts.append(f'<p class="tags">{chips}</p>')
-
-    if theme["assets"].get("preview"):
-        parts.append(
-            f'<figure><img loading="lazy" src="assets/{esc(theme["assets"]["preview"])}" '
-            f'alt="{esc(theme["name"])} desktop preview">'
-            f'<figcaption>Rendered, not screenshotted.</figcaption></figure>')
-
-    worst = theme["slots"][0]["ratio"] if theme["slots"] else "-"
-    facts = [
-        ("contrast floor", f'{theme["floor"]}:1'),
-        ("worst slot", f'{worst}:1'),
-        ("ink slots", len(theme["slots"])),
-        ("wallpapers", theme["wallpapers"]),
-        ("shader", "yes" if theme["shader"] else "no"),
-        ("battery", theme["battery"] or "normal"),
-    ]
-    parts.append('<dl class="facts">')
-    for label, value in facts:
-        parts.append(f"<div><dt>{esc(label)}</dt><dd>{esc(value)}</dd></div>")
-    parts.append("</dl>")
-
-    parts.append('<div class="swatches">')
-    for entry in theme["slots"]:
-        ratio, slot = entry["ratio"], entry["slot"]
-        if slot in theme["exempt"]:
-            css_class, note = "xmpt", "exempt"
-        elif ratio < theme["floor"]:
-            css_class, note = "under", "under floor"
-        else:
-            css_class, note = "", "ok"
-        title = theme["exempt"].get(slot) or ""
-        parts.append(
-            f'<div class="sw-card"{f" title={json.dumps(title)}" if title else ""}>'
-            f'<div class="sw-chip" style="background:{esc(entry["colour"])}"></div>'
-            f'<div class="sw-meta"><div class="sw-name">{esc(slot)}</div>'
-            f'<div class="sw-num {css_class}">{ratio}:1 &middot; {note}</div>'
-            f'</div></div>')
-    parts.append("</div>")
-
-    if theme["notes"]:
-        parts.append(f'<p class="tag" style="margin-top:22px">{esc(theme["notes"])}</p>')
-
-    cmd_id = f'cmd-{esc(theme["slug"])}'
-    command = (f'./ritzpah install {theme["slug"]}\n'
-               f'omarchy theme set {theme["slug"]}')
-    parts.append(
-        f'<div class="cmd"><code id="{cmd_id}">{esc(command)}</code>'
-        f'<button data-copy="{cmd_id}">copy</button></div>')
-
-    if theme["assets"].get("sheet"):
-        parts.append(
-            f'<figure><img loading="lazy" src="assets/{esc(theme["assets"]["sheet"])}" '
-            f'alt="{esc(theme["name"])} wallpapers">'
-            f'<figcaption>All {theme["wallpapers"]} wallpapers. Generated, never downloaded.'
-            f'</figcaption></figure>')
-
-    parts.append("</div></section>")
-    return "\n".join(parts)
+<ul class="cards">{"".join(card(t) for t in themes)}</ul>
+</div></section>
+"""
+    return page("Themes — Ritzpah", f"All {len(themes)} Ritzpah themes for Omarchy.",
+                body + footer(themes), "catalog")
 
 
 STEPS = [
     ("Start with the palette",
-     "<code>themes/&lt;lowercase-hyphen-name&gt;/colors.toml</code>. That one file is a "
-     "complete working theme &mdash; Omarchy generates the terminal, btop, neovim, "
-     "Chromium and shell configs from it. Look at it before you reach for anything else."),
+     "<code>themes/&lt;lowercase-hyphen-name&gt;/colors.toml</code> is a complete working "
+     "theme on its own — Omarchy generates the terminal, btop, neovim, Chromium and shell "
+     "configs from it. Look at it before reaching for anything else."),
     ("Declare what it is",
-     "<code>theme.json</code>: name, tagline, tags, and the contrast floor you hold "
-     "yourself to. Every field is optional and unknown keys are kept, not rejected &mdash; "
-     "a schema that refuses weird is a schema that stops you building the good one."),
+     "<code>theme.json</code> carries the name, tagline, tags and the contrast floor you "
+     "hold yourself to. Every field is optional and unknown keys are kept rather than "
+     "rejected — a schema that refuses weird stops you building the good one."),
     ("Earn the floor",
      "<code>./ritzpah contrast &lt;name&gt;</code> measures every ink slot against the "
-     "background. Fix the palette, or exempt the slot <em>with a reason</em>. Do not "
-     "lower the floor to make the error go away."),
+     "background. Fix the palette, or exempt the slot <em>with a reason</em>. Do not lower "
+     "the floor to make the error go away."),
     ("Generate the wallpapers",
-     "A <code>tools/make-backgrounds-&lt;name&gt;</code> script that builds its images "
-     "from primitives, and <code>chmod +x</code> in the same commit. The recipe is the "
-     "deliverable; the exact image never was. Then open them and actually look."),
+     "A <code>tools/make-backgrounds-&lt;name&gt;</code> script that draws its images from "
+     "primitives, made executable in the same commit. The recipe is the deliverable; the "
+     "exact image never was. Then open them and actually look."),
     ("Record the prompt",
      "<code>PROMPT.md</code>, verbatim, typos and all, with the date. No cleaning it up "
      "afterwards to sound smarter than you were. A theme without its prompt is an orphan."),
     ("Pass the gate",
-     "<code>./ritzpah validate &lt;name&gt;</code> until it is <code>[ok]</code>, or every "
-     "warning left is one you can defend out loud. CI runs the same command on your pull "
-     "request, and a theme that fails it never reaches this page."),
+     "<code>./ritzpah validate &lt;name&gt;</code> until it reports <code>[ok]</code>, or "
+     "every remaining warning is one you can defend out loud. CI runs the same command on "
+     "your pull request."),
 ]
 
 
-def render_contributing():
-    steps = "".join(
-        f"<li><h4>{title}</h4><p>{body}</p></li>" for title, body in STEPS)
-    return f"""<section class="contrib" id="contributing"><div class="wrap">
-<p class="eyebrow">Contributing</p>
+def render_contributing(themes):
+    steps = "".join(f"<li><h3>{t}</h3><p>{b}</p></li>" for t, b in STEPS)
+    body = f"""
+<section class="sec"><div class="wrap">
+<div class="sec-head"><p class="eyebrow">Contributing</p>
 <h2>Add a theme</h2>
 <p>Nothing here is ever updated after it is merged. This is a roster of
-one-shots, which makes the merge the only moment a theme can be made right
-&mdash; so <strong>perfect it before you contribute it</strong>, and expect the
-gate to be the strict part of an otherwise permissive repo.</p>
+one-shots, which makes the merge the only moment a theme can be made right — so
+perfect it before you contribute it, and expect the gate to be the strict part
+of an otherwise permissive repository.</p></div>
 <ol class="steps">{steps}</ol>
-<div class="rulebox">
-<p>House rule: <strong>Ritzpah is allowed to be too much.</strong> If a theme is
+<div class="note-box" style="margin-top:38px">
+<p><strong>House rule: Ritzpah is allowed to be too much.</strong> If a theme is
 tasteful, restrained, or honestly pretty usable for daily driving, it is in the
-wrong repo. Turn something up.</p>
+wrong repository. Turn something up.</p>
 <p>Blueprint is the exception that proves it, and it is not a loophole. It holds
-AAA where the rest of the repo sits on AA &mdash; but the excess did not go
+AAA where the rest of the collection sits on AA — but the excess did not go
 missing, it went into the rigour instead of the look. If you are going to be
 restrained here, be insufferable about it.</p>
 </div>
-<div class="cta">
-<a class="btn primary" href="{REPO}/blob/main/THEME_JSON.md">The theme.json schema</a>
-<a class="btn" href="{REPO}/blob/main/RITZPAH_SKILL.md">The full build guide</a>
+<div class="actions" style="margin-top:32px;display:flex;gap:11px;flex-wrap:wrap">
+<a class="btn primary" href="{REPO}/blob/main/THEME_JSON.md">theme.json schema</a>
+<a class="btn" href="{REPO}/blob/main/RITZPAH_SKILL.md">Full build guide</a>
 <a class="btn" href="{REPO}/issues/new">Open an issue</a>
 </div>
-</div></section>"""
+</div></section>
 
-
-def render_trust():
-    return f"""<section class="trust" id="trust"><div class="wrap">
-<p class="eyebrow">Before you install anything</p>
+<section class="sec" id="trust"><div class="wrap">
+<div class="sec-head"><p class="eyebrow">Before you install anything</p>
 <h2>Don't trust me</h2>
-<p>This repo ships shell scripts that run on your machine and write into
+<p>This repository ships shell scripts that run on your machine and write into
 <code>~/.config/omarchy/</code>. You have no reason to trust a stranger's theme
-repo. So don't &mdash; ask your own agent:</p>
-<pre id="audit">{esc(AUDIT_PROMPT)}</pre>
-<div class="cmd"><button data-copy="audit">copy the audit prompt</button></div>
-<p class="claim">To make that cheap: the only things that execute are
-<code>ritzpah</code>, <code>install</code>, <code>tools/ritzpah-lib.py</code>,
+repo, so don't — ask your own agent first.</p></div>
+<div class="cmd"><pre id="audit">{esc(AUDIT_PROMPT)}</pre>
+<button class="btn" data-copy="audit">Copy prompt</button></div>
+<div class="note-box" style="margin-top:30px">
+<p>To make that cheap: the only things that execute are <code>ritzpah</code>,
+<code>install</code>, <code>tools/ritzpah-lib.py</code>,
 <code>tools/ritzpah-site.py</code> and <code>tools/make-backgrounds-*</code>.
-Everything else is TOML, Lua and images. Nothing in the repo makes a network
-request, runs on a schedule, or runs at shell startup.</p>
+Everything else is TOML, Lua and images. Nothing in the repository makes a
+network request, runs on a schedule, or runs at shell startup.</p>
 <p>An audit covers the commit you audited. Run it again after a
 <code>git pull</code>.</p>
-</div></section>"""
-
-
-def render(themes):
-    data = json.dumps(themes, separators=(",", ":"))
-    quickstart = ("git clone " + REPO + ".git\n"
-                  "cd ritzpah && ./ritzpah list")
-    return f"""<!doctype html>
-<html lang="en"><head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Ritzpah &mdash; Omarchy themes. Loud ones.</title>
-<meta name="description" content="A catalog of {len(themes)} Omarchy themes engineered to be seen from orbit. Every wallpaper generated from a script, never downloaded.">
-<meta property="og:title" content="Ritzpah - Omarchy themes. Loud ones.">
-<meta property="og:description" content="{len(themes)} Omarchy themes. Every wallpaper generated, never downloaded.">
-<meta name="color-scheme" content="dark">
-<style>{CSS}</style>
-</head><body>
-
-{render_hero(themes)}
-{render_rail(themes)}
-{render_catalog(themes)}
-{"".join(render_theme(t) for t in themes)}
-{render_contributing()}
-{render_trust()}
-
-<footer><div class="wrap">
-<div class="cmd"><code id="quickstart">{esc(quickstart)}</code>
-<button data-copy="quickstart">copy</button></div>
-<p><a href="{REPO}">github.com/lubabs770/ritzpah</a>
-&nbsp;&middot;&nbsp; MIT &nbsp;&middot;&nbsp; every contrast number on this page
-was measured from <code>colors.toml</code> at build time, not typed by hand.</p>
-</div></footer>
-
-<script>{JS.replace("__DATA__", data)}</script>
-</body></html>
+</div>
+</div></section>
 """
+    return page("Contribute — Ritzpah",
+                "How to add a theme to Ritzpah, and how to audit it before installing.",
+                body + footer(themes), "contributing")
+
+
+def render_theme_page(theme, prev_theme, next_theme, themes):
+    worst = theme["slots"][0]["ratio"] if theme["slots"] else "-"
+    facts = "".join(
+        f"<div><dt>{esc(k)}</dt><dd>{esc(v)}</dd></div>" for k, v in [
+            ("Contrast floor", f'{theme["floor"]}:1'),
+            ("Worst slot", f"{worst}:1"),
+            ("Ink slots", len(theme["slots"])),
+            ("Wallpapers", theme["wallpapers"]),
+            ("Shader", "Yes" if theme["shader"] else "No"),
+            ("Battery", (theme["battery"] or "normal").title()),
+        ])
+
+    swatches = []
+    for entry in theme["slots"]:
+        slot, ratio = entry["slot"], entry["ratio"]
+        if slot in theme["exempt"]:
+            cls, note = "xmpt", "exempt"
+        elif ratio < theme["floor"]:
+            cls, note = "under", "under floor"
+        else:
+            cls, note = "", "ok"
+        title = theme["exempt"].get(slot) or ""
+        swatches.append(
+            f'<div class="sw"{f" title={json.dumps(title)}" if title else ""}>'
+            f'<div class="chip" style="background:{esc(entry["colour"])}"></div>'
+            f'<div class="m"><div class="n">{esc(slot)}</div>'
+            f'<div class="r {cls}">{ratio}:1 &middot; {note}</div></div></div>')
+
+    shot = theme["assets"].get("preview")
+    hero_shot = (f'<figure class="t-shot"><img src="../assets/{esc(shot)}" '
+                 f'alt="{esc(theme["name"])} desktop preview">'
+                 f'<figcaption>Rendered with ImageMagick, not screenshotted.</figcaption>'
+                 f'</figure>' if shot else "")
+    sheet = theme["assets"].get("sheet")
+    sheet_block = (f"""<section class="sec"><div class="wrap">
+<div class="sec-head"><h2>The wallpapers</h2>
+<p>All {theme["wallpapers"]} of them, drawn by
+<code>{esc(theme["generator"] or "its generator script")}</code>. Re-run it and
+you get a different set in the same palette, because the recipe is what ships.</p></div>
+<figure class="t-shot" style="margin-top:0"><img loading="lazy" src="../assets/{esc(sheet)}"
+alt="{esc(theme["name"])} wallpapers"></figure>
+</div></section>""" if sheet else "")
+
+    notes = (f'<div class="note-box" style="margin-top:30px"><p>{esc(theme["notes"])}</p></div>'
+             if theme["notes"] else "")
+    tags = "".join(f"<span>{esc(x)}</span>" for x in theme["tags"])
+
+    def pager_link(other, label):
+        if not other:
+            return "<span></span>"
+        return (f'<a href="{esc(other["slug"])}.html">{label}<b>{esc(other["name"])}</b></a>')
+
+    body = f"""
+<header class="t-hero"><div class="wrap">
+<a class="crumb" href="../catalog.html">&larr; All themes</a>
+<h1>{esc(theme["name"])}</h1>
+<p class="lede">{esc(theme["tagline"])}</p>
+<div class="tags">{tags}</div>
+{hero_shot}
+</div></header>
+
+<section class="sec"><div class="wrap">
+<div class="sec-head"><h2>Install it</h2></div>
+<div class="cmd"><pre id="cmd">./ritzpah install {esc(theme["slug"])}
+omarchy theme set {esc(theme["slug"])}</pre>
+<button class="btn" data-copy="cmd">Copy</button></div>
+<dl class="facts" style="margin-top:26px">{facts}</dl>
+{notes}
+</div></section>
+
+<section class="sec"><div class="wrap">
+<div class="sec-head"><h2>The palette</h2>
+<p>Every ink slot measured against <code>{esc(theme["background"])}</code>, worst
+first. A slot marked <em>exempt</em> sits below the floor deliberately and says
+why on hover.</p></div>
+<div class="swatches">{"".join(swatches)}</div>
+</div></section>
+
+{sheet_block}
+
+<section class="sec"><div class="wrap">
+<div class="pager">{pager_link(prev_theme, "Previous")}{pager_link(next_theme, "Next")}</div>
+</div></section>
+"""
+    return page(f'{theme["name"]} — Ritzpah',
+                theme["tagline"] or f'The {theme["name"]} theme for Omarchy.',
+                body + footer(themes, depth=1), "catalog", depth=1,
+                palette=palette_vars(theme))
 
 
 def build(repo, out):
@@ -574,21 +732,37 @@ def build(repo, out):
     if os.path.isdir(out):
         shutil.rmtree(out)
     os.makedirs(assets)
+    os.makedirs(os.path.join(out, "themes"))
 
     themes = collect(repo, assets)
-    with open(os.path.join(out, "index.html"), "w", encoding="utf-8") as handle:
-        handle.write(render(themes))
 
-    # Netlify serves this for unknown paths; without it a typo'd URL 404s ugly.
-    shutil.copy2(os.path.join(out, "index.html"), os.path.join(out, "404.html"))
+    with open(os.path.join(assets, "site.css"), "w", encoding="utf-8") as fh:
+        fh.write(CSS)
+    with open(os.path.join(assets, "site.js"), "w", encoding="utf-8") as fh:
+        fh.write(JS)
 
-    total = sum(
-        os.path.getsize(os.path.join(root, name))
-        for root, _, names in os.walk(out) for name in names
-    )
-    print(f"built {out} - {len(themes)} themes, {total / 1024 / 1024:.1f} MB")
-    print("CI publishes this to Pages on every push to main;")
-    print("open it locally with: xdg-open " + os.path.join(out, "index.html"))
+    pages = {
+        "index.html": render_landing(themes),
+        "catalog.html": render_catalog(themes),
+        "contributing.html": render_contributing(themes),
+    }
+    for index, theme in enumerate(themes):
+        pages[os.path.join("themes", f'{theme["slug"]}.html')] = render_theme_page(
+            theme,
+            themes[index - 1] if index else None,
+            themes[index + 1] if index + 1 < len(themes) else None,
+            themes,
+        )
+    pages["404.html"] = pages["index.html"]
+
+    for name, markup in pages.items():
+        with open(os.path.join(out, name), "w", encoding="utf-8") as fh:
+            fh.write(markup)
+
+    total = sum(os.path.getsize(os.path.join(root, name))
+                for root, _, names in os.walk(out) for name in names)
+    print(f"built {out} - {len(pages)} pages, {len(themes)} themes, {total / 1024 / 1024:.1f} MB")
+    print("open it with: xdg-open " + os.path.join(out, "index.html"))
     return 0
 
 

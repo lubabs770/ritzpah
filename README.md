@@ -2,41 +2,109 @@
 
 Omarchy themes. Loud ones.
 
-**Catalog: [lubabs770.github.io/ritzpah](https://lubabs770.github.io/ritzpah/)**
-— every theme, its full palette with measured contrast, and its wallpapers. The
-page wears whichever theme you are reading about.
+**Browse them at [lubabs770.github.io/ritzpah](https://lubabs770.github.io/ritzpah/)**
+— previews, full palettes with measured contrast, and the wallpapers. This file
+is the technical reference; the site is where you look at things.
 
-Omarchy's own `omarchy theme install <url>` expects one repo per theme, so this
+## Install
+
+Omarchy's `omarchy theme install <url>` expects one repo per theme, so this
 collection ships its own CLI.
 
 ```bash
 git clone https://github.com/lubabs770/ritzpah.git
 cd ritzpah
-./ritzpah list                    # the roster
-./ritzpah install acid-vortex     # copy it in
-omarchy theme set acid-vortex     # switch to it
+./ritzpah install blueprint --set
 ```
 
 | Command | Does |
 |---------|------|
-| `ritzpah list` | the roster, with contrast and wallpaper counts read off the files |
-| `ritzpah install <name> [--set]` | copy into `~/.config/omarchy/themes`. `--set` also switches |
+| `ritzpah list` | roster with contrast and wallpaper counts, measured off the files |
+| `ritzpah install <name> [--set]` | copy into `~/.config/omarchy/themes`; `--set` also switches |
 | `ritzpah install --all` | every theme, switching to none |
-| `ritzpah validate [name...]` | the gate. Errors mean it will not work; warnings mean it is not finished |
-| `ritzpah contrast [name...] [--floor N]` | WCAG ratio for every ink slot, worst first |
+| `ritzpah validate [name...]` | the gate; exit 1 on errors, 0 on warnings |
+| `ritzpah contrast [name...] [--floor N]` | WCAG ratio per ink slot, worst first |
 | `ritzpah show <name>` | everything known about one theme, as JSON |
-| `ritzpah site [dir]` | build the roster site into `site/` |
+| `ritzpah site [dir]` | build the static site into `site/` |
 
-Themes are **copied, never symlinked**. Every theme here is a one-shot,
-perfected before it is merged rather than updated afterwards, so a live link
-back to a working tree would only mean the installed theme changes under you.
-The clone is not load-bearing; move it or delete it and nothing breaks.
+`./install` is a thin wrapper kept for older instructions.
+
+Themes are **copied, never symlinked**. Each one is a one-shot, perfected before
+merge rather than updated after, so a live link back to a working tree would
+only mean the installed theme changes under you. The clone is not load-bearing.
+
+## Repo layout
+
+```
+ritzpah                               CLI: list, install, validate, contrast, show, site
+install                               thin wrapper kept for older instructions
+THEME_JSON.md                         the theme.json schema, and why it is forgiving
+RITZPAH_SKILL.md                      full build guide, gotchas, house rules
+themes/<name>/                        one theme, in Omarchy's own layout
+themes/<name>/theme.json              name, tagline, tags, contrast floor
+tools/ritzpah-lib.py                  data half of the CLI (TOML, JSON, contrast maths)
+tools/ritzpah-site.py                 builds the static site published to Pages
+tools/make-backgrounds*               one wallpaper generator per theme
+docs/                                 palette strips and wallpaper contact sheets
+.github/workflows/pages.yml           validates every theme, then publishes the site
+```
+
+## Anatomy of a theme
+
+Drop a directory under `themes/`. `colors.toml` alone is a complete working
+theme — Omarchy generates the terminal, btop, neovim, Chromium and shell configs
+from it via the templates in `/usr/share/omarchy/default/themed/`. Everything
+else is opt-in.
+
+| File | Does |
+|------|------|
+| `colors.toml` | the palette; drives every generated config. Required. |
+| `theme.json` | name, tagline, tags, contrast floor — see [THEME_JSON.md](THEME_JSON.md) |
+| `hyprland.lua` | borders, rounding, shadow, blur, animations, screen shaders |
+| `shell.<section>.toml` | overrides one section of the generated `shell.toml` |
+| `icons.theme` | one line, a Yaru variant |
+| `backgrounds/` | wallpapers, cycled by `omarchy theme bg next`. Keep each under 2 MB. |
+| `ghostty.conf` | replaces the generated one (restate the whole palette if you ship it) |
+| `preview.png` | rendered, not screenshotted |
+| `PROMPT.md` | the original prompt, verbatim |
+
+Ship `shell.<section>.toml` rather than a whole `shell.toml`: Omarchy merges each
+section file into the generated config and leaves the rest at their defaults, so
+you do not freeze sections you did not mean to own.
+
+`hyprland.lua` loads *before* `~/.config/hypr/looknfeel.lua`, so a user's
+personal config always wins. A theme owns borders, rounding, blur, shadow and
+animations; gaps and per-window opacity belong to the human.
+
+## The gate
+
+Nothing here is ever updated after it is merged, which makes the merge the only
+moment a theme can be made right. `ritzpah validate` is therefore the whole
+quality policy, and CI runs it on every pull request.
+
+**Errors** — no `colors.toml`, TOML that does not parse, Lua that does not
+compile, a `shell.<section>.toml` aiming at a section Omarchy does not have, an
+ink slot under the theme's own contrast floor, or a named generator that is not
+executable.
+
+**Warnings** — no `theme.json`, no tagline, no `PROMPT.md`, no `preview.png`, an
+empty `backgrounds/`, a wallpaper over 2 MB, a shell key absent from the
+installed template, or a stale contrast exemption.
+
+Shell keys are checked against the live
+`/usr/share/omarchy/default/themed/shell.toml.tpl`, not a list baked into the
+validator, so an upstream rename surfaces as a failure rather than themes
+rotting silently. That check is skipped when Omarchy is not installed, which
+includes CI.
+
+No measured value is ever written by hand. Slot counts, ratios, wallpaper counts
+and shader yes/no are derived from the files every time they are needed.
 
 ## Don't trust me
 
 This repo ships shell scripts that run on your machine and write into
 `~/.config/omarchy/`. You have no reason to trust a stranger's theme repo. So
-don't. Ask your own agent, before you install anything:
+don't — ask your own agent, before you install anything:
 
 ```
 Audit this repo before I install it: https://github.com/lubabs770/ritzpah
@@ -50,177 +118,35 @@ Quote the exact lines for anything you flag. If it's clean, say so plainly.
 ```
 
 To make that cheap: the only things here that execute are `ritzpah`, `install`,
-`tools/ritzpah-lib.py`, `tools/ritzpah-site.py`, and `tools/make-backgrounds-*`.
-Everything else is TOML, Lua, and images. The generators run only when you ask them to rebuild
-wallpapers. **Nothing in this repo makes a network request. Nothing runs on a
-schedule. Nothing runs at shell startup.**
+`tools/ritzpah-lib.py`, `tools/ritzpah-site.py` and `tools/make-backgrounds-*`.
+Everything else is TOML, Lua and images. **Nothing in this repo makes a network
+request. Nothing runs on a schedule. Nothing runs at shell startup.**
 
 An audit covers the commit you audited. Run it again after `git pull`.
 
-## Themes
+## Contributing
 
-### Acid Vortex
+See [THEME_JSON.md](THEME_JSON.md) for the schema and
+[RITZPAH_SKILL.md](RITZPAH_SKILL.md) for the full build guide. The short version:
+`colors.toml` first, declare it in `theme.json`, earn the contrast floor or
+exempt a slot with a reason, generate the wallpapers with a script that ships,
+record `PROMPT.md` verbatim, then `./ritzpah validate` until it is clean.
 
-Neon filaments on a violet void, with a window border that never stops
-spinning. [Full write-up](themes/acid-vortex/README.md).
+## Ideas queue
 
-![Acid Vortex](themes/acid-vortex/preview.png)
-
-![Palette](docs/palette.png)
-
-### Ego Death
-
-Loads a GLSL shader over the whole compositor output, so the desktop itself
-melts and hue-cycles in real time — windows, bar, cursor and all. Costs battery
-and most of your ability to read small text. [Full
-write-up](themes/ego-death/README.md).
-
-![Ego Death](themes/ego-death/preview.png)
-
-![Palette](docs/ego-death-palette.png)
-
-### Untitled
-
-The most themeless theme ever themed. Grayscale, but derived rather than
-chosen: the eight ANSI hues are ranked by Rec.709 luma and dealt onto an even
-band of neutral gray, so hue is gone and only the order it implied survives. No
-gradient, no rounding, no shadow, no blur, no transparency, and animations off
-at the switch. [Full write-up](themes/untitled/README.md).
-
-![Untitled](themes/untitled/preview.png)
-
-![Palette](docs/untitled-palette.png)
-
-### Cathode
-
-A terminal nobody ever switched off. Amber phosphor on near-black, and a second
-GLSL shader over the whole compositor output — barrel distortion, 720 scanlines,
-an aperture grille and phosphor bloom, so the desktop is not themed like a CRT,
-it is displayed on one. One phosphor means one colour: every ANSI slot sits on
-the same amber line and differs only in beam current, except `red`, which is the
-single thing on the screen allowed to be a different colour at all. Costs
-battery for the same reason Ego Death does. [Full
-write-up](themes/cathode/README.md).
-
-![Cathode](themes/cathode/preview.png)
-
-![Palette](docs/cathode-palette.png)
-
-### Blueprint
-
-Cyan-white ink on deep navy, drawn to a standard. The useful one: no shader, no
-full-damage redraw, nothing over 120ms, every surface opaque, and a palette
-built on a single rule — **every colour used as text clears 7:1 against the
-background**, which is AAA rather than the 4.5:1 the rest of this repo sits on.
-Red had to become pink to make that floor and the write-up says so. The excess
-went into the rigour instead of the look: ISO 128 line weights, ISO 129
-dimensioning, and wallpapers that are real technical sheets with zone strips,
-ruler ticks, filed revision histories and drawn filing holes. [Full
-write-up](themes/blueprint/README.md).
-
-![Blueprint](themes/blueprint/preview.png)
-
-![Palette](docs/blueprint-palette.png)
-
-### Casino Carpet
-
-Magenta, teal, gold, and a red that has no business being in the same room as
-any of them. The Las Vegas floor-covering recipe, applied without mercy: a dark
-saturated ground so nothing spilled on it ever shows, and a handful of very
-loud, very high-chroma figures on top so the eye never settles anywhere long
-enough to notice how long you have been here. Wallpapers are generated carpets
-— Archimedean scrolls, starbursts, paisleys and stars, mirrored into wallpaper
-group `pmm` — and the window border is a six-stop gradient that never stops
-turning. The palette still clears 4.5:1 on all twenty slots, which is the
-joke: nothing here is hard to read because of contrast. [Full
-write-up](themes/casino-carpet/README.md).
-
-![Casino Carpet](themes/casino-carpet/preview.png)
-
-![Palette](docs/casino-carpet-palette.png)
-
-## Repo layout
-
-```
-ritzpah                               the CLI: list, install, validate, contrast, show
-install                               thin wrapper kept for older instructions
-THEME_JSON.md                         the theme.json schema, and why it is forgiving
-themes/<name>/                        one theme, in Omarchy's own layout
-themes/<name>/theme.json              name, tagline, tags, contrast floor
-tools/ritzpah-lib.py                  data half of the CLI (TOML, JSON, contrast maths)
-tools/ritzpah-site.py                 builds the roster site published to Pages
-.github/workflows/pages.yml           validates every theme, then publishes the site
-tools/make-backgrounds                regenerates Acid Vortex's wallpapers
-tools/make-backgrounds-ego-death      regenerates Ego Death's wallpapers
-tools/make-backgrounds-untitled       regenerates Untitled's wallpapers
-tools/make-backgrounds-cathode        regenerates Cathode's wallpapers
-tools/make-backgrounds-blueprint      regenerates Blueprint's wallpapers
-tools/make-backgrounds-casino-carpet  regenerates Casino Carpet's wallpapers
-tools/make-palette-untitled           derives Untitled's colors.toml from scratch
-docs/                                 preview images used by the READMEs
-```
-
-No wallpaper here was downloaded. Every generator builds its images from plasma
-noise, gradients and drawing primitives with ImageMagick, so the recipes ship
-instead of the provenance questions.
-
-## Adding a theme
-
-Drop a directory under `themes/`, then run `./ritzpah validate <name>` until it
-stops complaining. The only required file is `colors.toml` —
-that alone is enough for Omarchy to generate terminal, btop, neovim, Chromium,
-and shell configs from the templates in `/usr/share/omarchy/default/themed/`.
-Everything else is opt-in:
-
-| File | Does |
-|------|------|
-| `colors.toml` | the palette; drives every generated config |
-| `hyprland.lua` | borders, rounding, shadow, blur, animations |
-| `shell.<section>.toml` | overrides one section of the generated `shell.toml` |
-| `icons.theme` | one line, a Yaru variant |
-| `backgrounds/` | wallpapers, cycled by `omarchy theme bg next` |
-| `ghostty.conf` | replaces the generated one (restate the whole palette if you ship this) |
-| `preview.png` | what shows up in this README |
-| `theme.json` | name, tagline, tags, contrast floor — see [THEME_JSON.md](THEME_JSON.md) |
-
-A theme's `hyprland.lua` is loaded *before* `~/.config/hypr/looknfeel.lua`, so
-anything you set there wins over the theme. Gaps and per-window opacity
-generally live in your personal config; borders, rounding, blur, shadow and
-animations are the theme's to own.
-
-Shipping `shell.<section>.toml` files is safer than shipping a whole
-`shell.toml` — Omarchy merges each one into the generated file and leaves the
-other sections at their defaults.
-
-
-
-## so I don't forget when I have more tokens!!!
 ```
 calvin & hobbes
-
 the far side
-
 annoying (randomly timed subtle looknfeel changes to unnerve you, no loudness just erk)
-
-not a theme but - ritzpah-roulette!! a shell script that mish-moshes every theme in the
-  repo together in a completely and profoundly perplexed way: colors.toml from one theme,
-  hyprland.lua from another, a wallpaper from a third, icons.theme from a fourth, shell
-  sections dealt out at random. installs the chimera as a real theme called Roulette so
-  omarchy cannot tell it was assembled by a coin. --seed N to reproduce a disaster you
-  liked, --dry-run to see what it was about to do to you. only escape is
-  `omarchy theme set "Acid Vortex"`
-
+ritzpah-roulette: deal colors.toml, hyprland.lua, a wallpaper, icons.theme and
+  shell sections from different themes at random; install the chimera as a real
+  theme called Roulette. --seed N reproduces a disaster you liked, --dry-run
+  shows what it was about to do to you.
 your computer is a website!!! famous website based themes
-
-we need to make this a proper layer above the normal omarchy theme layer, so it can become an official plugin, ritzpah shall have it's "shim" to make it feel seamless and intergrated whil not being invasive
-
-we need to restructre the github repo so the roster can be browsed properly (github pages deployment? netlify drop?)
-
-add a dash cmd for claude helping users make a theme in one prompt
-
-themes dynamicly built in real time based off of ridicoulous vars, like sports scores, the weather etc.
+themes dynamically built in real time from ridiculous variables — sports scores,
+  the weather. The variable drives hue and chroma, never the luminance the
+  contrast floor depends on.
 ```
-
 
 ## License
 
