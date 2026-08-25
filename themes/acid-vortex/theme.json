@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "slug": "acid-vortex",
+  "kind": "static",
+  "name": "Acid Vortex",
+  "tagline": "Neon filaments on a violet void, with a border that never stops spinning.",
+  "tags": [
+    "dark",
+    "loud",
+    "neon",
+    "animated"
+  ],
+  "contrast_floor": 4.5,
+  "contrast_exempt": {
+    "muted": "dimmed chrome, never body text"
+  },
+  "generator": "tools/make-backgrounds"
+}

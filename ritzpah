@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+#
+# ritzpah - the collection's own CLI.
+#
+#   ritzpah list                          the roster
+#   ritzpah validate [name...]            the gate; no args means all of them
+#   ritzpah contrast [name...] [--floor N]  WCAG ratio per ink slot
+#   ritzpah show <name>                   everything known about one theme, as JSON
+#   ritzpah install <name|--all> [--set]  copy into ~/.config/omarchy/themes
+#   ritzpah site [out-dir]                build the roster site (default: site/)
+#
+# Themes are COPIED, never symlinked: every theme here is a one-shot, perfected
+# before it is merged rather than updated afterwards, so a live link back to a
+# working tree would only mean the installed theme changes under you.
+#
+# Nothing in this script reaches the network.
+
+set -euo pipefail
+
+REPO_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+LIB="$REPO_DIR/tools/ritzpah-lib.py"
+THEMES_SRC="$REPO_DIR/themes"
+THEMES_DST="$HOME/.config/omarchy/themes"
+
+usage() { sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; }
+
+die() { echo "ritzpah: $*" >&2; exit 1; }
+
+# Install is the one verb that writes outside the repo, so it is the one verb
+# implemented here rather than in the library.
+install_theme() {
+  local name="$1" src="$THEMES_SRC/$1" dst="$THEMES_DST/$1"
+  [[ -d $src ]] || die "no theme called '$name'"
+
+  if [[ -e $dst || -L $dst ]]; then
+    # Never remove something that is not ours to remove. A theme directory has
+    # a colors.toml; anything else at this path is the user's problem, not a
+    # stale install, and deleting it unasked is how a theme installer eats
+    # someone's work.
+    [[ -f $dst/colors.toml ]] || die "$dst exists and does not look like a theme; move it aside first"
+    rm -rf -- "$dst"
+  fi
+
+  mkdir -p "$THEMES_DST"
+  cp -r -- "$src" "$dst"
+  echo "installed $name"
+}
+
+cmd=${1:-help}
+[[ $# -gt 0 ]] && shift
+
+case "$cmd" in
+  list | validate | contrast | show)
+    exec python3 "$LIB" "$REPO_DIR" "$cmd" "$@"
+    ;;
+  site)
+    exec python3 "$REPO_DIR/tools/ritzpah-site.py" "$REPO_DIR" "${1:-$REPO_DIR/site}"
+    ;;
+  install)
+    switch=0
+    names=()
+    all=0
+    for arg in "$@"; do
+      case "$arg" in
+        --set) switch=1 ;;
+        --all) all=1 ;;
+        -*) die "unknown install option '$arg'" ;;
+        *) names+=("$arg") ;;
+      esac
+    done
+
+    if (( all )); then
+      for dir in "$THEMES_SRC"/*/; do install_theme "$(basename "$dir")"; done
+      (( switch )) && die "--set needs one theme, not --all"
+    else
+      (( ${#names[@]} > 0 )) || die "install needs a theme name, or --all"
+      for name in "${names[@]}"; do install_theme "$name"; done
+    fi
+
+    # Switching is opt-in. Installing a theme should never change the desktop
+    # out from under someone who was only stocking the shelf.
+    if (( switch )); then
+      (( ${#names[@]} == 1 )) || die "--set needs exactly one theme"
+      omarchy theme set "${names[0]}"
+    else
+      echo "Nothing was switched. Pick one with: omarchy theme set <name>"
+    fi
+    ;;
+  -h | --help | help)
+    usage
+    ;;
+  *)
+    die "unknown command '$cmd' (try: ritzpah help)"
+    ;;
+esac

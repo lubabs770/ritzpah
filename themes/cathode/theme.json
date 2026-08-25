@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "slug": "cathode",
+  "kind": "static",
+  "name": "Cathode",
+  "tagline": "A terminal nobody ever switched off. Amber phosphor, displayed on a CRT.",
+  "tags": [
+    "dark",
+    "monochrome",
+    "shader",
+    "retro"
+  ],
+  "contrast_floor": 4.5,
+  "contrast_exempt": {
+    "muted": "one phosphor means one colour; muted is the low end of the beam"
+  },
+  "generator": "tools/make-backgrounds-cathode",
+  "battery": "costs",
+  "notes": "GLSL barrel distortion, 720 scanlines, aperture grille, phosphor bloom."
+}

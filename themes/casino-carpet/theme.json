@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "slug": "casino-carpet",
+  "kind": "static",
+  "name": "Casino Carpet",
+  "tagline": "The Las Vegas floor-covering recipe, applied without mercy.",
+  "tags": [
+    "dark",
+    "loud",
+    "high-chroma",
+    "animated"
+  ],
+  "contrast_floor": 4.5,
+  "generator": "tools/make-backgrounds-casino-carpet",
+  "notes": "The joke is that nothing here is hard to read because of contrast."
+}

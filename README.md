@@ -3,18 +3,55 @@
 Omarchy themes. Loud ones.
 
 Omarchy's own `omarchy theme install <url>` expects one repo per theme, so this
-collection ships its own installer.
+collection ships its own CLI.
 
 ```bash
 git clone https://github.com/lubabs770/ritzpah.git
 cd ritzpah
-./install acid-vortex
+./ritzpah list                    # the roster
+./ritzpah install acid-vortex     # copy it in
+omarchy theme set acid-vortex     # switch to it
 ```
 
-That copies the theme into `~/.config/omarchy/themes/` and switches to it.
-`./install --all` installs every theme without switching. `./install --link
-<name>` symlinks instead of copying, so edits in the repo take effect on the
-next `omarchy theme set`.
+| Command | Does |
+|---------|------|
+| `ritzpah list` | the roster, with contrast and wallpaper counts read off the files |
+| `ritzpah install <name> [--set]` | copy into `~/.config/omarchy/themes`. `--set` also switches |
+| `ritzpah install --all` | every theme, switching to none |
+| `ritzpah validate [name...]` | the gate. Errors mean it will not work; warnings mean it is not finished |
+| `ritzpah contrast [name...] [--floor N]` | WCAG ratio for every ink slot, worst first |
+| `ritzpah show <name>` | everything known about one theme, as JSON |
+| `ritzpah site [dir]` | build the roster site into `site/` |
+
+Themes are **copied, never symlinked**. Every theme here is a one-shot,
+perfected before it is merged rather than updated afterwards, so a live link
+back to a working tree would only mean the installed theme changes under you.
+The clone is not load-bearing; move it or delete it and nothing breaks.
+
+## Don't trust me
+
+This repo ships shell scripts that run on your machine and write into
+`~/.config/omarchy/`. You have no reason to trust a stranger's theme repo. So
+don't. Ask your own agent, before you install anything:
+
+```
+Audit this repo before I install it: https://github.com/lubabs770/ritzpah
+Clone it somewhere temporary and actually read it. Tell me:
+- what executes, and when - install time, every shell start, on a timer?
+- does anything touch the network, and where does it connect?
+- does it write anywhere outside ~/.config/omarchy/themes?
+- does it read anything it has no business reading - keys, tokens, shell history?
+- anything obfuscated: base64, eval, curl piped into a shell?
+Quote the exact lines for anything you flag. If it's clean, say so plainly.
+```
+
+To make that cheap: the only things here that execute are `ritzpah`, `install`,
+`tools/ritzpah-lib.py`, `tools/ritzpah-site.py`, and `tools/make-backgrounds-*`.
+Everything else is TOML, Lua, and images. The generators run only when you ask them to rebuild
+wallpapers. **Nothing in this repo makes a network request. Nothing runs on a
+schedule. Nothing runs at shell startup.**
+
+An audit covers the commit you audited. Run it again after `git pull`.
 
 ## Themes
 
@@ -101,8 +138,14 @@ write-up](themes/casino-carpet/README.md).
 ## Repo layout
 
 ```
-install                               installer for the whole collection
+ritzpah                               the CLI: list, install, validate, contrast, show
+install                               thin wrapper kept for older instructions
+THEME_JSON.md                         the theme.json schema, and why it is forgiving
 themes/<name>/                        one theme, in Omarchy's own layout
+themes/<name>/theme.json              name, tagline, tags, contrast floor
+tools/ritzpah-lib.py                  data half of the CLI (TOML, JSON, contrast maths)
+tools/ritzpah-site.py                 builds the roster site published to Pages
+.github/workflows/pages.yml           validates every theme, then publishes the site
 tools/make-backgrounds                regenerates Acid Vortex's wallpapers
 tools/make-backgrounds-ego-death      regenerates Ego Death's wallpapers
 tools/make-backgrounds-untitled       regenerates Untitled's wallpapers
@@ -119,7 +162,8 @@ instead of the provenance questions.
 
 ## Adding a theme
 
-Drop a directory under `themes/`. The only required file is `colors.toml` —
+Drop a directory under `themes/`, then run `./ritzpah validate <name>` until it
+stops complaining. The only required file is `colors.toml` —
 that alone is enough for Omarchy to generate terminal, btop, neovim, Chromium,
 and shell configs from the templates in `/usr/share/omarchy/default/themed/`.
 Everything else is opt-in:
@@ -133,6 +177,7 @@ Everything else is opt-in:
 | `backgrounds/` | wallpapers, cycled by `omarchy theme bg next` |
 | `ghostty.conf` | replaces the generated one (restate the whole palette if you ship this) |
 | `preview.png` | what shows up in this README |
+| `theme.json` | name, tagline, tags, contrast floor — see [THEME_JSON.md](THEME_JSON.md) |
 
 A theme's `hyprland.lua` is loaded *before* `~/.config/hypr/looknfeel.lua`, so
 anything you set there wins over the theme. Gaps and per-window opacity

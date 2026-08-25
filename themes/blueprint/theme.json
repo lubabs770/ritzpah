@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "slug": "blueprint",
+  "kind": "static",
+  "name": "Blueprint",
+  "tagline": "Cyan-white ink on deep navy, drawn to a standard. The one you can work in all day.",
+  "tags": [
+    "dark",
+    "readable",
+    "technical",
+    "quiet"
+  ],
+  "contrast_floor": 7.0,
+  "generator": "tools/make-backgrounds-blueprint",
+  "notes": "AAA rather than AA. Red had to become pink to make the floor."
+}

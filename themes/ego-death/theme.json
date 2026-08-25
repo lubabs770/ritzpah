@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "slug": "ego-death",
+  "kind": "static",
+  "name": "Ego Death",
+  "tagline": "A GLSL shader melts the whole compositor output, hue-cycling in real time.",
+  "tags": [
+    "dark",
+    "loud",
+    "shader",
+    "animated"
+  ],
+  "contrast_floor": 4.5,
+  "contrast_exempt": {
+    "blue": "pure-blue slot, deliberately the deepest thing on screen",
+    "muted": "dimmed chrome, never body text"
+  },
+  "generator": "tools/make-backgrounds-ego-death",
+  "battery": "costs",
+  "notes": "The shader moves the pixels anyway; measured contrast is a floor, not a promise."
+}

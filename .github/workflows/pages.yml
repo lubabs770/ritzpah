@@ -1,0 +1,64 @@
+# Build the roster site and publish it to GitHub Pages.
+#
+# The site asserts measured numbers -- contrast ratios, ink-slot counts,
+# wallpaper counts -- that are derived from the theme files at build time. That
+# is only true as long as the published site is rebuilt from the same commit the
+# themes live in, which is the whole reason this deploys automatically instead
+# of by hand.
+#
+# One manual step before the first run: Settings -> Pages -> Source ->
+# "GitHub Actions".
+
+name: pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; keep the in-flight one, it is cheap to redo.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ImageMagick and Lua
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq imagemagick lua5.4
+
+      # The gate. A theme that fails validation must not reach the site, since
+      # nothing here is ever updated after it is merged.
+      - name: Validate every theme
+        run: ./ritzpah validate
+
+      - name: Build the site
+        run: ./ritzpah site ./site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./site
+
+  deploy:
+    # Pull requests get validated and built, but only main is published.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

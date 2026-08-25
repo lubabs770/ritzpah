@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "slug": "untitled",
+  "kind": "static",
+  "name": "Untitled",
+  "tagline": "The most themeless theme ever themed. Grayscale, derived rather than chosen.",
+  "tags": [
+    "dark",
+    "monochrome",
+    "quiet",
+    "derived"
+  ],
+  "contrast_floor": 4.5,
+  "contrast_exempt": {
+    "muted": "the darkest band the derivation produced",
+    "dark_foreground": "4.49 is where the even-band spacing landed, not a choice",
+    "blue": "same band as dark_foreground; hue is gone, only the order survives"
+  },
+  "generator": "tools/make-palette-untitled",
+  "notes": "Palette is computed by ranking the eight ANSI hues by Rec.709 luma."
+}
