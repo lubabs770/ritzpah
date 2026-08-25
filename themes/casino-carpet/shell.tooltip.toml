@@ -1,0 +1,9 @@
+# A tooltip is the small print on the machine. Darker than the surface it
+# points at, plum keyline, no accent anywhere -- the one object in this theme
+# with no opinion.
+[tooltip]
+background       = "#0a0113"
+background-alpha = 0.96
+text             = "#ffeaf9"
+border           = "#5a0d78"
+border-alpha     = 1.0

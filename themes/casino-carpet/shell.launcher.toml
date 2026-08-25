@@ -1,0 +1,17 @@
+# The launcher is the only surface in this theme that gets to be nearly quiet,
+# because it is the only one you type into. The scrim is the heaviest in the
+# repo: with a wallpaper this loud, anything less and the pattern reads
+# straight through the list you are trying to scan.
+[launcher]
+background                = "#1b0430"
+background-alpha          = 0.94
+text                      = "#ffeaf9"
+border                    = "#ff3ad6"
+border-alpha              = 1.0
+scrim                     = "#0a0113"
+scrim-alpha               = 0.82
+selected-background       = "#ff3ad6"
+selected-background-alpha = 0.26
+selected-text             = "#ffffff"
+selected-border           = "#ffc61f"
+selected-border-alpha     = 1.0

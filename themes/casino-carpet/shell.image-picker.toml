@@ -1,0 +1,11 @@
+# Picking a wallpaper on this theme means choosing between five carpets that
+# are all the same carpet. The scrim is heavy so the thumbnails are being
+# compared against each other rather than against the one already on screen.
+[image-picker]
+scrim                   = "#0a0113"
+scrim-alpha             = 0.8
+text                    = "#ffeaf9"
+selected-border         = "#ffc61f"
+selected-border-alpha   = 1.0
+unselected-border       = "#5a0d78"
+unselected-border-alpha = 1.0

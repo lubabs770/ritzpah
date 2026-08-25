@@ -1,0 +1,22 @@
+# No clocks, no windows, and now no way back in either. The lock screen is the
+# one surface here that is fully opaque and drops to the darkest ground in the
+# palette -- partly because a lock screen is read in bad light at the wrong
+# angle, and partly because the joke only works if the floor stops for a
+# moment.
+#
+# Error text is the one legitimate use of red in this theme. It clears 4.96:1,
+# the AA floor, which is the lowest anything here sits at, and it is still the
+# most alarming object on the screen because everything around it has gone
+# dark.
+[lock]
+background       = "#0a0113"
+background-alpha = 1.0
+text             = "#ffeaf9"
+placeholder      = "#c48ade"
+text-error       = "#ff1f2e"
+border           = "#5a0d78"
+border-active    = "#22e0d0"
+border-error     = "#ff1f2e"
+border-alpha     = 1.0
+selection        = "#5a0d78"
+selection-alpha  = 1.0

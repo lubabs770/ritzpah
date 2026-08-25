@@ -1,0 +1,16 @@
+# Menus match the launcher, with gold on the selected row. Gold is the trim
+# colour on a real floor: the thin line that runs round the edge of every
+# figure and ties four hues that hate each other into one pattern.
+[menu]
+background                = "#1b0430"
+background-alpha          = 0.94
+text                      = "#ffeaf9"
+border                    = "#ff3ad6"
+border-alpha              = 1.0
+scrim                     = "#0a0113"
+scrim-alpha               = 0.82
+selected-background       = "#ff3ad6"
+selected-background-alpha = 0.26
+selected-text             = "#ffffff"
+selected-border           = "#ffc61f"
+selected-border-alpha     = 1.0

@@ -81,18 +81,36 @@ write-up](themes/blueprint/README.md).
 
 ![Palette](docs/blueprint-palette.png)
 
+### Casino Carpet
+
+Magenta, teal, gold, and a red that has no business being in the same room as
+any of them. The Las Vegas floor-covering recipe, applied without mercy: a dark
+saturated ground so nothing spilled on it ever shows, and a handful of very
+loud, very high-chroma figures on top so the eye never settles anywhere long
+enough to notice how long you have been here. Wallpapers are generated carpets
+— Archimedean scrolls, starbursts, paisleys and stars, mirrored into wallpaper
+group `pmm` — and the window border is a six-stop gradient that never stops
+turning. The palette still clears 4.5:1 on all twenty slots, which is the
+joke: nothing here is hard to read because of contrast. [Full
+write-up](themes/casino-carpet/README.md).
+
+![Casino Carpet](themes/casino-carpet/preview.png)
+
+![Palette](docs/casino-carpet-palette.png)
+
 ## Repo layout
 
 ```
-install                            installer for the whole collection
-themes/<name>/                     one theme, in Omarchy's own layout
-tools/make-backgrounds             regenerates Acid Vortex's wallpapers
-tools/make-backgrounds-ego-death   regenerates Ego Death's wallpapers
-tools/make-backgrounds-untitled    regenerates Untitled's wallpapers
-tools/make-backgrounds-cathode     regenerates Cathode's wallpapers
-tools/make-backgrounds-blueprint   regenerates Blueprint's wallpapers
-tools/make-palette-untitled        derives Untitled's colors.toml from scratch
-docs/                              preview images used by the READMEs
+install                               installer for the whole collection
+themes/<name>/                        one theme, in Omarchy's own layout
+tools/make-backgrounds                regenerates Acid Vortex's wallpapers
+tools/make-backgrounds-ego-death      regenerates Ego Death's wallpapers
+tools/make-backgrounds-untitled       regenerates Untitled's wallpapers
+tools/make-backgrounds-cathode        regenerates Cathode's wallpapers
+tools/make-backgrounds-blueprint      regenerates Blueprint's wallpapers
+tools/make-backgrounds-casino-carpet  regenerates Casino Carpet's wallpapers
+tools/make-palette-untitled           derives Untitled's colors.toml from scratch
+docs/                                 preview images used by the READMEs
 ```
 
 No wallpaper here was downloaded. Every generator builds its images from plasma

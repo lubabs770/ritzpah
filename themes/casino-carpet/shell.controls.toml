@@ -1,0 +1,39 @@
+# Control states as the four figures on the floor, dealt in ascending volume:
+# plum keyline, then teal, then magenta. Nothing here uses red. Red is the
+# theme's decoration and it is deliberately the lowest-contrast slot in the
+# palette, which makes it the one colour that must never be asked to carry
+# state.
+[controls]
+# Normal: the keyline. This is the dark outline that separates two figures on
+# a real carpet, doing exactly that job here.
+normal-color        = "#ffeaf9"
+normal-fill-alpha   = 0.0
+normal-border       = "#5a0d78"
+normal-border-width = 1
+normal-border-alpha = 1.0
+
+# Hover: the pile crushed flat where someone walked. Same figure, lit.
+hover-cursor-color        = "#fff5fd"
+hover-cursor-fill-alpha   = 0.1
+hover-cursor-border       = "#b06ad0"
+hover-cursor-border-width = 1
+hover-cursor-border-alpha = 1.0
+
+# Focus: teal, 2px. Teal rather than magenta because magenta is the accent and
+# is therefore already everywhere -- on the border, in the shadow, in the bar's
+# selection fill. Focus has to be the thing that is NOT already on screen.
+focus-color        = "#ffffff"
+focus-fill-alpha   = 0.14
+focus-border       = "#22e0d0"
+focus-border-width = 2
+focus-border-alpha = 1.0
+
+# Selected: magenta, the house colour, at the volume the house plays it.
+selected-color        = "#ffffff"
+selected-fill-alpha   = 0.24
+selected-border       = "#ff3ad6"
+selected-border-width = 1
+selected-border-alpha = 1.0
+
+pressed-fill-alpha   = 0.38
+selection-fill-alpha = 0.4

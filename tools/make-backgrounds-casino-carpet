@@ -1,0 +1,473 @@
+#!/usr/bin/env bash
+#
+# Regenerate the Casino Carpet wallpaper set with ImageMagick.
+#
+#   tools/make-backgrounds-casino-carpet [output-dir] [width] [height]
+#
+# Defaults to themes/casino-carpet/backgrounds at 2560x1440.
+#
+# ---------------------------------------------------------------------------
+# WHAT A CASINO CARPET ACTUALLY IS, AND WHY THIS SCRIPT IS SHAPED LIKE THIS
+# ---------------------------------------------------------------------------
+#
+# A Vegas floor covering is not "a busy pattern". It is a specific piece of
+# industrial design solving four problems at once, and every one of those four
+# problems leaves a fingerprint you can see in the output of this script:
+#
+#   1. It has to hide everything spilled on it for thirty years. Hence a dark,
+#      highly saturated ground and no large flat areas anywhere. A stain is
+#      only a stain if you can find its edge.
+#   2. It has to survive being photographed under sodium light, halogen
+#      downlights and whatever the sign outside is doing. Hence colours at the
+#      top of the chroma range, which shift less alarmingly than pastels do.
+#   3. It is not supposed to be looked at. The whole floor is a downward-facing
+#      surface competing with several thousand backlit machines, so its job is
+#      to be uninteresting to rest on. It achieves that by never repeating
+#      quietly: the eye keeps starting a pattern-match, failing, and looking up.
+#   4. It has to tile on a 12ft broadloom roll with no visible seam.
+#
+# Point 4 is the interesting one for a generator, because it forces a
+# symmetry. Almost every carpet like this is built on wallpaper group **pmm** --
+# two perpendicular mirror axes -- which is what you get by drawing one
+# quadrant and then flopping and flipping it. That is exactly what tile() does
+# below, and it is why the motifs are drawn into a square that is a QUARTER of
+# the repeat rather than the whole repeat.
+#
+# The geometry is computed in awk, because bash has no trigonometry and every
+# interesting shape here (Archimedean spirals, n-pointed stars, radial
+# scatters) is defined in polar coordinates. Everything is built at a fixed
+# 2560x1440 design size and resized once at the end, so the repeat is a whole
+# number of tiles regardless of what the caller asked for.
+#
+# Requires ImageMagick 7 (`magick`, not `convert`).
+
+set -euo pipefail
+
+OUT="${1:-$(dirname "$0")/../themes/casino-carpet/backgrounds}"
+W="${2:-2560}"
+H="${3:-1440}"
+
+command -v magick >/dev/null || { echo "ImageMagick 7 (magick) is required" >&2; exit 1; }
+
+DW=2560
+DH=1440
+
+# ---------------------------------------------------------------------------
+# The palette, straight out of colors.toml
+# ---------------------------------------------------------------------------
+GROUND='#1b0430'        # background: the aubergine field
+GROUND_DEEP='#12021f'   # dark_background: the shadow between the pile
+GROUND_LIFT='#2c0a4a'   # lighter_background: where the light catches it
+PLUM='#5a0d78'          # selection: the outline colour that keeps figures apart
+MAGENTA='#ff3ad6'
+TEAL='#22e0d0'
+GREEN='#1fd98c'
+GOLD='#ffc61f'
+OLD_GOLD='#d99a3f'
+ORANGE='#ff8a1f'
+RED='#ff1f2e'           # the one that should not be here
+BLUE='#6a7dff'
+
+mkdir -p "$OUT"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+# ---------------------------------------------------------------------------
+# MVG helpers
+# ---------------------------------------------------------------------------
+
+MVG=""
+m() { printf '%s\n' "$*" >> "$MVG"; }
+
+# An Archimedean spiral, r = a + b*theta, as a list of points.
+#
+# Archimedean rather than logarithmic on purpose: an Archimedean spiral has
+# CONSTANT spacing between its turns, which is what a woven scroll looks like,
+# because the yarn laying it down is a fixed width. A logarithmic spiral opens
+# up as it goes and reads as a nautilus, which is a completely different and
+# much more tasteful object.
+spiral_pts() { # cx cy a b turns start_deg step_deg
+  awk -v cx="$1" -v cy="$2" -v a="$3" -v b="$4" -v t="$5" -v s0="$6" -v st="$7" 'BEGIN {
+    pi = atan2(0, -1); n = t * 360 / st;
+    for (i = 0; i <= n; i++) {
+      th = (s0 + i * st) * pi / 180;
+      r  = a + b * (i * st) * pi / 180;
+      printf "%d,%d ", cx + r * cos(th), cy + r * sin(th);
+    }
+  }'
+}
+
+# An n-pointed star as a closed polygon: outer radius R, inner radius r.
+star_pts() { # cx cy R r points rot_deg
+  awk -v cx="$1" -v cy="$2" -v R="$3" -v r="$4" -v p="$5" -v rot="$6" 'BEGIN {
+    pi = atan2(0, -1);
+    for (i = 0; i < 2 * p; i++) {
+      th  = (rot + i * 180 / p) * pi / 180;
+      rad = (i % 2 == 0) ? R : r;
+      printf "%d,%d ", cx + rad * cos(th), cy + rad * sin(th);
+    }
+  }'
+}
+
+# A starburst: n straight rays from a centre, alternating long and short.
+# Drawn as strokes rather than as a filled polygon so the rays can have round
+# caps, which is what a tufted point looks like when the yarn is cut.
+burst() { # cx cy R rays colour width
+  local cx=$1 cy=$2 R=$3 rays=$4 col=$5 wid=$6
+  m "fill none stroke $col stroke-width $wid stroke-linecap round"
+  awk -v cx="$cx" -v cy="$cy" -v R="$R" -v n="$rays" 'BEGIN {
+    pi = atan2(0, -1);
+    for (i = 0; i < n; i++) {
+      th  = i * 360 / n * pi / 180;
+      rad = (i % 2 == 0) ? R : R * 0.55;
+      printf "line %d,%d %d,%d\n", cx, cy, cx + rad * cos(th), cy + rad * sin(th);
+    }
+  }' >> "$MVG"
+}
+
+# A star, drawn twice: once fat in the outline colour, once in its own colour
+# on top. Every figure on a real carpet is outlined, because two saturated
+# colours meeting directly produce a vibrating edge, and a dark keyline between
+# them is the entire reason the pattern reads as a pattern and not as a haze.
+star() { # cx cy R points rot colour
+  local pts; pts=$(star_pts "$1" "$2" "$3" $(( $3 * 42 / 100 )) "$4" "$5")
+  m "fill $PLUM stroke $PLUM stroke-width 9 stroke-linejoin round polygon $pts"
+  m "fill $6 stroke none polygon $pts"
+}
+
+# A scroll: a spiral stroked fat in the keyline colour, then thinner in its own
+# colour, so it comes out as a piped cord rather than a pencil line.
+scroll() { # cx cy a b turns start step colour width
+  local pts path
+  pts=$(spiral_pts "$1" "$2" "$3" "$4" "$5" "$6" "$7")
+  # Emitted as a path, not a polyline. ImageMagick 7.1.2 rejects the exact
+  # combination `stroke-linecap` + `polyline` ("non-conforming drawing
+  # primitive definition"), and a scroll without round caps is a pencil line
+  # with two chopped ends, which is the one thing this function exists to
+  # avoid. `polygon`, `line` and `path` all take linecap fine; only `polyline`
+  # does not. Same geometry either way.
+  path=$(printf '%s' "$pts" | awk '{ for (i = 1; i <= NF; i++) printf "%s%s", (i == 1 ? "M " : " L "), $i }')
+  m "fill none stroke $PLUM stroke-width $(( $9 + 10 )) stroke-linecap round path '$path'"
+  m "fill none stroke $8 stroke-width $9 stroke-linecap round path '$path'"
+}
+
+# A paisley, which is the shape every one of these carpets has somewhere on it
+# whether or not anyone involved could name it. Drawn as a cubic path: a droop
+# from the tip, round the belly, and back up into a hook.
+paisley() { # x y size rot colour
+  local x=$1 y=$2 s=$3 rot=$4 col=$5
+  local p
+  p=$(awk -v s="$s" 'BEGIN {
+    printf "M 0,%d C %d,%d %d,%d %d,%d C %d,%d %d,%d %d,%d C %d,%d %d,%d 0,%d Z",
+      -s,
+      int(s*0.62), int(-s*0.72), int(s*0.86), int(-s*0.08), int(s*0.55), int(s*0.42),
+      int(s*0.30), int(s*0.78), int(-s*0.34), int(s*0.86), int(-s*0.52), int(s*0.30),
+      int(-s*0.70), int(-s*0.22), int(-s*0.34), int(-s*0.78), -s;
+  }')
+  m "push graphic-context translate $x,$y rotate $rot"
+  m "fill $PLUM stroke $PLUM stroke-width 10 stroke-linejoin round path '$p'"
+  m "fill $col stroke none path '$p'"
+  # The eye of the paisley: a small counter-shape, always in the gold, always
+  # off-centre toward the hook.
+  m "fill $GOLD stroke none ellipse $(( -s / 6 )),$(( s / 8 )) $(( s / 5 )),$(( s / 3 )) 0,360"
+  m "pop graphic-context"
+}
+
+# Scalloped ribbon: a run of half-circles, alternating up and down, which is
+# how the border strip on this kind of carpet is always drawn.
+ribbon() { # x0 y x1 r colour width
+  local x=$1 y=$2 x1=$3 r=$4 col=$5 wid=$6 i=0 x_
+  m "fill none stroke $PLUM stroke-width $(( wid + 8 ))"
+  for (( x_ = x; x_ + 2 * r <= x1; x_ += 2 * r )); do
+    if (( i % 2 == 0 )); then m "arc $x_,$(( y - r )) $(( x_ + 2 * r )),$(( y + r )) 180,360"
+    else                      m "arc $x_,$(( y - r )) $(( x_ + 2 * r )),$(( y + r )) 0,180"; fi
+    i=$(( i + 1 ))
+  done
+  i=0
+  m "fill none stroke $col stroke-width $wid"
+  for (( x_ = x; x_ + 2 * r <= x1; x_ += 2 * r )); do
+    if (( i % 2 == 0 )); then m "arc $x_,$(( y - r )) $(( x_ + 2 * r )),$(( y + r )) 180,360"
+    else                      m "arc $x_,$(( y - r )) $(( x_ + 2 * r )),$(( y + r )) 0,180"; fi
+    i=$(( i + 1 ))
+  done
+}
+
+# ---------------------------------------------------------------------------
+# Tiling
+# ---------------------------------------------------------------------------
+#
+# Draw a quadrant, mirror it into a full repeat, tile the canvas with it.
+#
+# The flop-then-flip is what produces wallpaper group pmm. It also guarantees
+# the seam: opposite edges of the finished block are mirror images of each
+# other, so adjacent tiles meet edge-to-edge with no discontinuity, which is
+# the property a broadloom roll has to have and a random field never does.
+tile_from_quadrant() { # quadrant.mvg quadrant-size out.png
+  local q=$1 qs=$2 out=$3
+  magick -size "${qs}x${qs}" xc:none -draw @"$q" "$TMP/_q.png"
+  magick "$TMP/_q.png" \( +clone -flop \) +append \
+         \( +clone -flip \) -append "$TMP/_block.png"
+  # -virtual-pixel tile plus a plain crop is the cheapest way to lay a tile
+  # across an arbitrary canvas; `tile:` would also work but insists on reading
+  # the file back off disk for every repeat.
+  magick -size "${DW}x${DH}" xc:none \
+    -tile "$TMP/_block.png" -draw "rectangle 0,0 $((DW-1)),$((DH-1))" "$out"
+}
+
+# ---------------------------------------------------------------------------
+# The three motif layers
+# ---------------------------------------------------------------------------
+#
+# A carpet like this is built in passes on the loom, and it is easier to reason
+# about here for the same reason: a big scroll layer, a starburst layer on a
+# different repeat so the two never line up, and a confetti layer with no
+# repeat at all.
+
+# Layer 1: the scrolls. Quadrant QS; the block is 2*QS.
+layer_scrolls() { # quadrant-size colour-a colour-b out.png
+  local qs=$1 ca=$2 cb=$3 out=$4
+  MVG="$TMP/l1.mvg"; : > "$MVG"
+
+  # The centre medallion. Drawn as a quarter at the (qs,qs) corner, so the
+  # mirroring assembles four of these into one rosette in the middle of the
+  # block.
+  scroll "$qs" "$qs" $(( qs / 9 )) $(( qs / 26 )) 1.15 200 5 "$ca" 16
+  scroll "$qs" "$qs" $(( qs / 5 )) $(( qs / 18 )) 0.75 20 5 "$cb" 12
+
+  # The corner rosette, at (0,0), which the tiling turns into a second, offset
+  # medallion. Two medallions per repeat on different centres is the thing that
+  # stops the pattern from reading as a grid.
+  scroll 0 0 $(( qs / 12 )) $(( qs / 30 )) 1.0 40 5 "$cb" 14
+
+  # An arm sweeping between them. This is the piece doing the actual work: it
+  # crosses the mirror axis, so its reflection meets it at an angle and the two
+  # together make a shape that is not obviously a reflection of anything.
+  scroll $(( qs * 52 / 100 )) $(( qs * 48 / 100 )) $(( qs / 14 )) $(( qs / 22 )) 0.85 120 5 "$ca" 13
+
+  # Paisleys in the two remaining corners of the quadrant.
+  paisley $(( qs * 20 / 100 )) $(( qs * 78 / 100 )) $(( qs / 6 )) 24  "$cb"
+  paisley $(( qs * 80 / 100 )) $(( qs * 18 / 100 )) $(( qs / 7 )) 200 "$ca"
+
+  tile_from_quadrant "$MVG" "$qs" "$out"
+}
+
+# Layer 2: the starbursts, on a deliberately different repeat.
+#
+# The two repeats are chosen to be coprime-ish rather than related by a factor.
+# If the star repeat were half the scroll repeat, every second star would land
+# in the same place relative to a scroll and the whole floor would snap into a
+# grid, which is the one thing it must not do.
+layer_stars() { # quadrant-size out.png
+  local qs=$1 out=$2
+  MVG="$TMP/l2.mvg"; : > "$MVG"
+
+  star "$qs" "$qs" $(( qs / 4 )) 8 22 "$GOLD"
+  burst "$qs" "$qs" $(( qs / 3 )) 16 "$ORANGE" 7
+  star "$qs" "$qs" $(( qs / 8 )) 8 0 "$RED"
+
+  star 0 0 $(( qs / 6 )) 6 0 "$GOLD"
+  star $(( qs * 30 / 100 )) $(( qs * 30 / 100 )) $(( qs / 12 )) 5 18 "$OLD_GOLD"
+  star $(( qs * 74 / 100 )) $(( qs * 26 / 100 )) $(( qs / 16 )) 5 -30 "$GOLD"
+  star $(( qs * 26 / 100 )) $(( qs * 74 / 100 )) $(( qs / 16 )) 5 12 "$GOLD"
+
+  tile_from_quadrant "$MVG" "$qs" "$out"
+}
+
+# Layer 3: confetti. No repeat, no symmetry, drawn straight onto the full
+# canvas from a random scatter.
+#
+# This layer exists because pmm symmetry is findable. Give the eye four seconds
+# with a perfectly mirrored field and it locates the axes, and once it has them
+# the floor is solved and it stops being disorienting. A few hundred
+# unrepeatable specks make that impossible, at the cost of a pattern that can
+# never be woven on an actual loom. Nobody here owns a loom.
+layer_confetti() { # count out.png
+  local n=$1 out=$2 i x y s k
+  MVG="$TMP/l3.mvg"; : > "$MVG"
+  local -a cols=("$GOLD" "$TEAL" "$MAGENTA" "$RED" "$GREEN" "$ORANGE" "$BLUE" "$OLD_GOLD")
+  for (( i = 0; i < n; i++ )); do
+    x=$(( RANDOM % DW ))
+    y=$(( RANDOM % DH ))
+    s=$(( 7 + RANDOM % 16 ))
+    k=$(( RANDOM % 8 ))
+    case $(( RANDOM % 3 )) in
+      0) m "fill ${cols[$k]} stroke $PLUM stroke-width 3 circle $x,$y $(( x + s )),$y" ;;
+      1) m "fill ${cols[$k]} stroke $PLUM stroke-width 3 polygon $x,$(( y - s )) $(( x + s )),$y $x,$(( y + s )) $(( x - s )),$y" ;;
+      2) m "fill ${cols[$k]} stroke none polygon $(star_pts "$x" "$y" "$s" $(( s * 40 / 100 )) 5 $(( RANDOM % 72 )))" ;;
+    esac
+  done
+  magick -size "${DW}x${DH}" xc:none -draw @"$MVG" "$out"
+}
+
+# ---------------------------------------------------------------------------
+# The ground
+# ---------------------------------------------------------------------------
+#
+# Not a flat fill. A very heavily blurred plasma between the two darkest
+# background tones, which reads as the unevenness a floor this size always has:
+# traffic lanes, the bit under the change booth, the patch by the doors.
+ground() { # out.png
+  magick -size "${DW}x${DH}" plasma:fractal -colorspace Gray -blur 0x70 -auto-level \
+    -level 10%,90% \
+    \( -clone 0 -fill "$GROUND_DEEP" -colorize 100 \) \
+    \( -clone 0 -fill "$GROUND_LIFT" -colorize 100 \) \
+    -delete 0 -swap 0,1 +swap -compose blend -define compose:args=50 -composite \
+    "$TMP/_g0.png"
+  magick -size "${DW}x${DH}" "xc:$GROUND" "$TMP/_g0.png" \
+    -compose blend -define compose:args=45 -composite "$1"
+}
+
+# ---------------------------------------------------------------------------
+# Carpet finish
+# ---------------------------------------------------------------------------
+#
+# Five passes, in this order, each undoing a specific way in which vector art
+# does not look like textile:
+#
+#   1. spread     Every edge in the image is currently mathematically exact.
+#                 Cut pile has no exact edges: the pattern is quantised to
+#                 individual tufts, so the boundary between two colours is a
+#                 ragged interleave about one tuft wide. -spread displaces each
+#                 pixel randomly within a radius, which is that interleave,
+#                 and it is the single pass that does the most work here. A
+#                 blur would NOT do -- a blur mixes the two colours into a
+#                 third, and yarn does not mix.
+#   2. nap        Noise stretched vertically by a motion blur, overlaid. Carpet
+#                 has a direction; drag your hand across a hotel corridor and
+#                 it changes shade. This is that.
+#   3. grain      A little untreated noise on top, to break up the nap into
+#                 something with a fibre scale rather than a streak scale.
+#   4. vignette   The room is lit from above the machines, not from above the
+#                 floor.
+#   5. saturate   Push chroma up 18%. The figures are already at the top of the
+#                 gamut, so this mostly saturates the ground, which is what
+#                 makes the whole image feel dyed rather than painted.
+finish() { # in.png out.jpg
+  # The nap. Noise at a quarter scale then enlarged, because full-resolution
+  # noise stretched by motion blur produces a fibre finer than JPEG can encode
+  # and costs a megabyte to fail at it.
+  magick -size "$(( DW / 4 ))x$(( DH / 4 ))" xc:'gray(50%)' \
+    -attenuate 1.6 +noise Gaussian -colorspace Gray \
+    -motion-blur 0x9+90 -resize "${DW}x${DH}!" -blur 0x1 \
+    +level 42%,58% "$TMP/_nap.png"
+
+  magick -size "${DW}x${DH}" radial-gradient:'gray(100%)-gray(72%)' "$TMP/_vig.png"
+
+  magick "$1" \
+    -spread 4 \
+    "$TMP/_nap.png" -compose overlay -composite \
+    -attenuate 0.30 +noise Gaussian \
+    "$TMP/_vig.png" -compose multiply -composite \
+    -modulate 100,118,100 \
+    -resize "${W}x${H}!" \
+    -sampling-factor 4:2:0 -quality 82 "$2"
+}
+
+# Stack ground + layers into one flat image.
+compose_carpet() { # ground scrolls stars confetti out.png
+  magick "$1" "$2" -compose over -composite \
+         "$3" -compose over -composite \
+         "$4" -compose over -composite "$5"
+}
+
+# ===========================================================================
+echo "1-high-limit"
+# The flagship. Straight carpet, no distortion, both medallions the same size,
+# nothing rotated. This is the one that is behind your windows all day, and it
+# is the only one in the set that a person could describe out loud.
+ground "$TMP/g.png"
+layer_scrolls 340 "$MAGENTA" "$TEAL" "$TMP/s1.png"
+layer_stars 268 "$TMP/s2.png"
+layer_confetti 260 "$TMP/s3.png"
+compose_carpet "$TMP/g.png" "$TMP/s1.png" "$TMP/s2.png" "$TMP/s3.png" "$TMP/1.png"
+finish "$TMP/1.png" "$OUT/1-high-limit.jpg"
+
+# ===========================================================================
+echo "2-slot-floor"
+# The same floor, doubled: a second copy of the pattern rotated 17 degrees and
+# blended back at 42%. Two near-identical periodic patterns at a small relative
+# angle produce moire, and moire is not a texture -- it is a large-scale
+# interference figure that MOVES when your head moves, because it depends on
+# the angle you are viewing from. There is no such figure in the file. Your
+# visual system is generating it. This is the dizziest thing here that does not
+# involve a distortion filter.
+ground "$TMP/g.png"
+layer_scrolls 300 "$MAGENTA" "$GREEN" "$TMP/s1.png"
+layer_stars 244 "$TMP/s2.png"
+layer_confetti 300 "$TMP/s3.png"
+compose_carpet "$TMP/g.png" "$TMP/s1.png" "$TMP/s2.png" "$TMP/s3.png" "$TMP/2a.png"
+magick "$TMP/2a.png" \
+  \( +clone -virtual-pixel tile -distort SRT '1.06 17' \) \
+  -compose blend -define compose:args=42 -composite "$TMP/2.png"
+finish "$TMP/2.png" "$OUT/2-slot-floor.jpg"
+
+# ===========================================================================
+echo "3-nickel-alley"
+# Everything in the room, going down the drain. -swirl rotates each pixel about
+# the centre by an amount that falls off with radius, so the repeat survives at
+# the edges of the screen and is completely destroyed in the middle, which is
+# where you are looking. The tile is smaller here because a swirl stretches the
+# pattern outward and a coarse tile comes out the far side as smears.
+ground "$TMP/g.png"
+layer_scrolls 256 "$TEAL" "$MAGENTA" "$TMP/s1.png"
+layer_stars 212 "$TMP/s2.png"
+layer_confetti 340 "$TMP/s3.png"
+compose_carpet "$TMP/g.png" "$TMP/s1.png" "$TMP/s2.png" "$TMP/s3.png" "$TMP/3a.png"
+magick "$TMP/3a.png" -virtual-pixel tile -swirl 210 "$TMP/3.png"
+finish "$TMP/3.png" "$OUT/3-nickel-alley.jpg"
+
+# ===========================================================================
+echo "4-comp-lounge"
+# The quiet one, for a given value of quiet. Bigger repeat, fewer confetti,
+# gold and old gold instead of magenta and teal, and a shallow -implode that
+# bulges the centre of the screen toward you -- the lens the ceiling camera
+# sees the room through. Comparatively restful. Still a casino.
+ground "$TMP/g.png"
+layer_scrolls 440 "$GOLD" "$TEAL" "$TMP/s1.png"
+layer_stars 356 "$TMP/s2.png"
+layer_confetti 120 "$TMP/s3.png"
+compose_carpet "$TMP/g.png" "$TMP/s1.png" "$TMP/s2.png" "$TMP/s3.png" "$TMP/4a.png"
+magick "$TMP/4a.png" -virtual-pixel tile -implode -0.32 "$TMP/4.png"
+finish "$TMP/4.png" "$OUT/4-comp-lounge.jpg"
+
+# ===========================================================================
+echo "5-no-clocks-no-windows"
+# The one with no horizon. -distort Polar maps the rectangular carpet onto a
+# disc: the top edge of the source becomes the outer rim and the bottom edge
+# collapses to a single point at the centre, so the repeat becomes a radial
+# fan that gets finer and finer toward the middle and never resolves.
+#
+# It is named after the two things a casino floor is famously built without,
+# and the reason it works is the same reason those two absences work: remove
+# every horizontal and vertical reference from a room and a person loses the
+# ability to say how long they have been standing in it.
+ground "$TMP/g.png"
+layer_scrolls 288 "$MAGENTA" "$GOLD" "$TMP/s1.png"
+layer_stars 236 "$TMP/s2.png"
+layer_confetti 220 "$TMP/s3.png"
+compose_carpet "$TMP/g.png" "$TMP/s1.png" "$TMP/s2.png" "$TMP/s3.png" "$TMP/5a.png"
+# Polar is done on a square so the fan is circular rather than an ellipse, then
+# the square is cropped back to the aspect ratio. Distorting the 16:9 frame
+# directly gives a squashed wheel, and a squashed wheel has a long axis, and a
+# long axis is a horizon.
+magick "$TMP/5a.png" -virtual-pixel tile -resize "${DH}x${DH}!" \
+  -distort Polar 0 \
+  -resize "${DW}x${DW}!" -gravity center -crop "${DW}x${DH}+0+0" +repage "$TMP/5b.png"
+# The middle of a polar map is a singularity: one source pixel smeared across
+# the whole hub. Cover it with a rosette, which is also what a real medallion
+# carpet does at the point where the fan would otherwise have to resolve.
+MVG="$TMP/5r.mvg"; : > "$MVG"
+CX=$(( DW / 2 )); CY=$(( DH / 2 ))
+m "fill $GROUND stroke $PLUM stroke-width 14 circle $CX,$CY $(( CX + 150 )),$CY"
+burst "$CX" "$CY" 128 24 "$GOLD" 8
+star "$CX" "$CY" 96 8 22 "$MAGENTA"
+star "$CX" "$CY" 52 8 0 "$TEAL"
+star "$CX" "$CY" 24 5 -18 "$RED"
+m "fill none stroke $GOLD stroke-width 9 circle $CX,$CY $(( CX + 150 )),$CY"
+m "fill none stroke $TEAL stroke-width 5 circle $CX,$CY $(( CX + 166 )),$CY"
+magick "$TMP/5b.png" -draw @"$MVG" "$TMP/5.png"
+finish "$TMP/5.png" "$OUT/5-no-clocks-no-windows.jpg"
+
+echo
+echo "wrote 5 backgrounds to $OUT"
+ls -l "$OUT" | awk 'NR>1 { printf "  %-28s %6.2f MB\n", $9, $5/1048576 }'

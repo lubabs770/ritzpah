@@ -1,0 +1,71 @@
+# Casino Carpet - magenta, teal, gold, and a red that has no business being in
+# the same room as any of them.
+#
+# The palette is not an accident and it is not "random bright colours". It is
+# the standard Las Vegas carpet recipe, which is a real thing with real
+# reasons behind it: a dark saturated ground so that fourteen hours of spilled
+# drinks never shows, and a small number of very loud, very high-chroma
+# figures on top of it so that the eye never settles anywhere long enough to
+# notice it has been in the building since Tuesday.
+#
+# The one thing this theme does NOT do is fail contrast. Every colour below
+# clears 4.5:1 against the background, the WCAG AA floor for body text, and
+# most of them clear it by a mile. That is the joke: nothing here is hard to
+# read because of contrast. It is hard to read because it is four hues that
+# hate each other, arranged at maximum volume, on a floor that is spinning.
+mode = "dark"
+
+# Magenta runs the place.
+accent = "#ff3ad6"
+selection = "#5a0d78"
+muted = "#b06ad0"
+
+# The ground. A casino carpet's field is never black -- black shows lint --
+# it is a very dark, very saturated something. Here it is aubergine, which is
+# the colour a burgundy and a navy agree on after a long night.
+background = "#1b0430"
+dark_background = "#12021f"
+darker_background = "#0a0113"
+lighter_background = "#2c0a4a"
+
+foreground = "#ffeaf9"
+# Comments. Still 7.26:1 -- dim for this theme, positively strident anywhere
+# else.
+dark_foreground = "#c48ade"
+light_foreground = "#fff5fd"
+bright_foreground = "#ffffff"
+
+# The four figures, plus the four colours a real carpet uses to stop the four
+# figures from touching each other.
+#
+# Slot        Value      Contrast on #1b0430   What it is on the floor
+red = "#ff1f2e"      #  4.96:1   the red that should not exist
+magenta = "#ff3ad6"  #  6.17:1   the swirls
+blue = "#6a7dff"     #  5.41:1   the ribbon between the swirls
+brown = "#d99a3f"    #  7.81:1   old gold, the tarnished half of the gold
+orange = "#ff8a1f"   #  8.05:1   the flare inside the starbursts
+green = "#1fd98c"    # 10.27:1   the teal's louder cousin
+cyan = "#22e0d0"     # 11.42:1   the teal
+yellow = "#ffc61f"   # 12.06:1   the gold, the stars, the trim, the everything
+
+# `red` is deliberately the lowest-contrast slot in the palette AND the one
+# that clashes hardest with the accent. #ff1f2e is a fire-engine scarlet and
+# #ff3ad6 is a hot magenta; put them side by side and the boundary between
+# them shimmers, because they are close in luminance and miles apart in hue,
+# which is exactly the condition the eye cannot resolve. That is not a bug
+# that survived review. That is the brief.
+
+# Bright variants: the same figure with the pile crushed flat and the lights
+# on it, which on a real floor is what the traffic lanes look like.
+bright_red = "#ff6b7d"
+bright_yellow = "#ffe066"
+bright_green = "#6bf0b8"
+bright_cyan = "#7af5ea"
+bright_blue = "#9aa8ff"
+bright_magenta = "#ff85e4"
+
+# Six stops, and hyprland.lua spins them. Magenta, teal, gold, red, and the
+# two hand-offs required to get between them without passing through anything
+# tasteful.
+hyprland_active_border = "rgba(ff3ad6ff) rgba(22e0d0ff) rgba(ffc61fff) rgba(ff1f2eff) rgba(ff3ad6ff) rgba(22e0d0ff) 45deg"
+hyprland_inactive_border = "rgba(5a0d78ff) rgba(2c0a4aff) 45deg"

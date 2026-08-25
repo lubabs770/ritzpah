@@ -1,0 +1,15 @@
+# The bar is the strip of carpet that runs up the wall behind the cage. Not
+# opaque: the wallpaper is the theme, and hiding it behind a solid bar would
+# be throwing away the only surface that carries the pattern.
+[bar]
+background       = "#12021f"
+background-alpha = 0.82
+text             = "#ffeaf9"
+# Recording, alerts, updates. Gold rather than red, because red in this
+# palette is a decoration that happens to be a warning colour everywhere else,
+# and the bar is the one place that distinction has to survive. Gold clears
+# 12.06:1 on the ground and is impossible to miss.
+active           = "#ffc61f"
+scale-with-font  = true
+size-horizontal  = 26
+size-vertical    = 28

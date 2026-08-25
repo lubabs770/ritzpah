@@ -1,0 +1,12 @@
+# A notification has to win against a wallpaper that is actively trying to stop
+# your eye settling. Hence 2px of gold on the darkest ground in the palette:
+# the highest-contrast pairing this theme can make, 12.06:1, spent on the one
+# surface that appears without being asked for.
+[notifications]
+background       = "#12021f"
+background-alpha = 0.96
+text             = "#ffeaf9"
+border           = "#ffc61f"
+border-alpha     = 1.0
+border-width     = 2
+countdown        = "#22e0d0"

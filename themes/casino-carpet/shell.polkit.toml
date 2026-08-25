@@ -1,0 +1,14 @@
+# The cage. A password prompt on this theme goes dark and opaque for the same
+# reason the lock screen does: it is the one moment the floor is not allowed to
+# be doing anything, because you are about to type a secret into it.
+[polkit]
+background       = "#12021f"
+background-alpha = 1.0
+text             = "#ffeaf9"
+text-error       = "#ff1f2e"
+border           = "#ffc61f"
+border-error     = "#ff1f2e"
+border-alpha     = 1.0
+scrim            = "#0a0113"
+scrim-alpha      = 0.86
+accent           = "#ff3ad6"

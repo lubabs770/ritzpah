@@ -1,0 +1,11 @@
+# Popups keep a little translucency so the pattern moves behind them. This is
+# the wrong call by every readability argument there is, and it is the right
+# call for this theme, which is a floor you are supposed to lose an afternoon
+# on.
+[popups]
+background       = "#1b0430"
+background-alpha = 0.93
+text             = "#ffeaf9"
+border           = "#ff3ad6"
+border-alpha     = 1.0
+border-width     = 2
