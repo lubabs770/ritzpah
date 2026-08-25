@@ -38,6 +38,18 @@ write-up](themes/ego-death/README.md).
 
 ![Palette](docs/ego-death-palette.png)
 
+### Untitled
+
+The most themeless theme ever themed. Grayscale, but derived rather than
+chosen: the eight ANSI hues are ranked by Rec.709 luma and dealt onto an even
+band of neutral gray, so hue is gone and only the order it implied survives. No
+gradient, no rounding, no shadow, no blur, no transparency, and animations off
+at the switch. [Full write-up](themes/untitled/README.md).
+
+![Untitled](themes/untitled/preview.png)
+
+![Palette](docs/untitled-palette.png)
+
 ## Repo layout
 
 ```
@@ -45,6 +57,8 @@ install                            installer for the whole collection
 themes/<name>/                     one theme, in Omarchy's own layout
 tools/make-backgrounds             regenerates Acid Vortex's wallpapers
 tools/make-backgrounds-ego-death   regenerates Ego Death's wallpapers
+tools/make-backgrounds-untitled    regenerates Untitled's wallpapers
+tools/make-palette-untitled        derives Untitled's colors.toml from scratch
 docs/                              preview images used by the READMEs
 ```
 

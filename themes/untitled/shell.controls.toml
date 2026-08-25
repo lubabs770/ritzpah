@@ -1,0 +1,28 @@
+# Every state is the same gray. They differ only in how much of it there is.
+[controls]
+normal-color        = "#c8c8c8"
+normal-fill-alpha   = 0.0
+normal-border       = "#3a3a3a"
+normal-border-width = 1
+normal-border-alpha = 1.0
+
+hover-cursor-color        = "#c8c8c8"
+hover-cursor-fill-alpha   = 0.06
+hover-cursor-border       = "#5a5a5a"
+hover-cursor-border-width = 1
+hover-cursor-border-alpha = 1.0
+
+focus-color        = "#c8c8c8"
+focus-fill-alpha   = 0.06
+focus-border       = "#8a8a8a"
+focus-border-width = 1
+focus-border-alpha = 1.0
+
+selected-color        = "#ffffff"
+selected-fill-alpha   = 0.16
+selected-border       = "#8a8a8a"
+selected-border-width = 1
+selected-border-alpha = 1.0
+
+pressed-fill-alpha   = 0.24
+selection-fill-alpha = 0.3

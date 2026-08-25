@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+#
+# Regenerate the Untitled wallpaper set with ImageMagick.
+#
+#   tools/make-backgrounds-untitled [output-dir] [width] [height]
+#
+# Defaults to themes/untitled/backgrounds at 2560x1440. Five flat neutral
+# fields, two 8-bit steps apart, centred on the theme background (#121212).
+# `omarchy theme bg next` works. You will not be able to tell.
+#
+# The noise is not decoration. A perfectly flat field is exactly what JPEG's
+# 8x8 DCT handles worst at the edges of the quantiser, and any gradient in a
+# 16-shade neighbourhood bands visibly on an OLED. A half-step of Gaussian
+# grain dithers both problems away and sits below the threshold of vision on
+# any panel you own.
+
+set -euo pipefail
+
+OUT="${1:-$(dirname "$0")/../themes/untitled/backgrounds}"
+W="${2:-2560}"
+H="${3:-1440}"
+
+command -v magick >/dev/null || { echo "ImageMagick 7 (magick) is required" >&2; exit 1; }
+
+mkdir -p "$OUT"
+
+# name:value -- the value is the 8-bit level of the flat field.
+FIELDS="1-untitled:14 2-untitled-1:16 3-untitled-final:18 4-untitled-final-2:20 5-untitled-final-FINAL:22"
+
+for field in $FIELDS; do
+  name=${field%%:*}
+  v=${field##*:}
+  hex=$(printf '#%02x%02x%02x' "$v" "$v" "$v")
+  echo "$name  $hex"
+  magick -size "${W}x${H}" "xc:$hex" \
+    -attenuate 0.006 +noise Gaussian \
+    -quality 96 "$OUT/$name.jpg"
+done
+
+echo "wrote 5 backgrounds to $OUT"

@@ -1,0 +1,10 @@
+[bar]
+background       = "#121212"
+background-alpha = 1.0
+text             = "#c8c8c8"
+# Recording, alerts, updates. There is no red left to raise, so attention is
+# spelled with brightness.
+active           = "#ffffff"
+scale-with-font  = true
+size-horizontal  = 26
+size-vertical    = 28
