@@ -471,6 +471,7 @@ check, and an install that just copies files.</p>
 <div class="actions">
 <a class="btn primary" href="catalog.html">Browse {len(themes)} themes</a>
 <a class="btn" href="#install">How to install</a>
+<a class="btn" href="contributing.html">Create your own</a>
 </div>
 </div></div></header>
 
