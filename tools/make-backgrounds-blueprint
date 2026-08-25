@@ -1,0 +1,649 @@
+#!/usr/bin/env bash
+#
+# Regenerate the Blueprint wallpaper set with ImageMagick.
+#
+#   tools/make-backgrounds-blueprint [output-dir] [width] [height]
+#
+# Defaults to themes/blueprint/backgrounds at 2560x1440.
+#
+# Every sheet is drawn as vector geometry -- MVG, ImageMagick's own drawing
+# language -- rather than pushed through plasma noise like the rest of the
+# repo's generators. A drawing is the one thing you cannot get out of a random
+# field: it has to be laid out.
+#
+# ALL GEOMETRY IS BUILT AT A FIXED 2560x1440 DESIGN SIZE AND SCALED TO THE
+# REQUESTED OUTPUT AT THE END. This is deliberate. The alternative is computing
+# every tick position against an arbitrary width, and a ruler whose ticks are
+# not evenly spaced is not a ruler.
+#
+# Lettering is monospaced on purpose. Drafting lettering was cut with a stencil
+# or a Leroy scriber, both of which give every character the same advance, so a
+# fixed-pitch font is the historically correct choice and also the only one
+# whose width you can compute in shell arithmetic.
+
+set -euo pipefail
+
+OUT="${1:-$(dirname "$0")/../themes/blueprint/backgrounds}"
+W="${2:-2560}"
+H="${3:-1440}"
+
+command -v magick >/dev/null || { echo "ImageMagick 7 (magick) is required" >&2; exit 1; }
+
+# Any installed monospace font works. Set BLUEPRINT_FONT to override; otherwise
+# take the first of these that ImageMagick actually has. Note the here-string:
+# piping into `grep -q` under `set -o pipefail` fails the whole pipeline,
+# because grep exits on the first match and ImageMagick dies of SIGPIPE behind
+# it.
+FONT_LIST=$(magick -list font)
+FONT=""
+for candidate in "${BLUEPRINT_FONT:-}" Liberation-Mono DejaVu-Sans-Mono Noto-Sans-Mono \
+                 JetBrainsMono-NF-Regular Nimbus-Mono-PS-Regular Courier; do
+  [ -n "$candidate" ] || continue
+  if grep -q "Font: ${candidate}$" <<<"$FONT_LIST"; then FONT="$candidate"; break; fi
+done
+[ -n "$FONT" ] || { echo "no usable monospace font found by ImageMagick" >&2; exit 1; }
+
+# ---------------------------------------------------------------------------
+# The design sheet
+# ---------------------------------------------------------------------------
+DW=2560
+DH=1440
+
+# Paper and ink, straight out of colors.toml.
+PAPER='#0b1a2b'
+GRID_FINE='#10243a'     # 20px grid: present, never competes with the drawing
+GRID_COARSE='#183450'   # 100px grid
+INK='#d6ecf5'           # foreground: visible edges, the drawing itself
+INK_THIN='#82aac0'      # dark_foreground: dimensions, hatching, notes
+CYAN='#4dd2ff'          # accent: centre lines, the title, the frame
+RED='#ff7b86'           # revision markup, and nothing else
+YELLOW='#ffd166'        # hold points
+
+# ISO 128 gives line weights as a ratio: thin is half of thick. That is the
+# entire weight scale on these sheets.
+THIN=2
+THICK=4
+
+# Sheet margins. The left margin is wider than the other three because that is
+# the binding edge, where a drawing gets punched and filed.
+TRIM=20          # the cut line, outside everything
+ZONE=40          # the zone strip: letters down the sides, numbers across
+BIND=48          # extra left margin for the filing holes
+
+FX0=$(( TRIM + ZONE + BIND ))
+FY0=$(( TRIM + ZONE ))
+FX1=$(( DW - TRIM - ZONE ))
+FY1=$(( DH - TRIM - ZONE ))
+FW=$(( FX1 - FX0 ))
+FH=$(( FY1 - FY0 ))
+
+# Title block, bottom right, inside the frame.
+TBW=780
+TBH=270
+TBX=$(( FX1 - TBW ))
+TBY=$(( FY1 - TBH ))
+
+mkdir -p "$OUT"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+# ---------------------------------------------------------------------------
+# MVG helpers
+# ---------------------------------------------------------------------------
+
+MVG=""            # the file currently being appended to
+m() { printf '%s\n' "$*" >> "$MVG"; }
+
+# Liberation Mono, like every other fixed-pitch face worth using, advances
+# 0.6em per character. That makes centred and right-aligned text a matter of
+# arithmetic rather than of guessing, which is the whole reason the lettering
+# on these sheets is monospaced.
+text_w() { echo $(( $1 * 6 * ${#2} / 10 )); }         # $1 = size, $2 = string
+
+ltext() { # size x y colour string  -- left aligned, y is the baseline
+  m "fill $4 stroke none font-size $1 text $2,$3 '$5'"
+}
+ctext() { # size cx y colour string -- centred on cx
+  local half; half=$(( $(text_w "$1" "$5") / 2 ))
+  m "fill $4 stroke none font-size $1 text $(( $2 - half )),$3 '$5'"
+}
+rtext() { # size rx y colour string -- right edge at rx
+  local wid; wid=$(text_w "$1" "$5")
+  m "fill $4 stroke none font-size $1 text $(( $2 - wid )),$3 '$5'"
+}
+
+# An arrowhead, drawn as a filled triangle. $3 is the direction the point faces.
+arrow() { # x y dir(l|r|u|d) colour
+  local x=$1 y=$2 c=$4 a=16 b=5
+  case $3 in
+    l) m "fill $c stroke none polygon $x,$y $((x+a)),$((y-b)) $((x+a)),$((y+b))" ;;
+    r) m "fill $c stroke none polygon $x,$y $((x-a)),$((y-b)) $((x-a)),$((y+b))" ;;
+    u) m "fill $c stroke none polygon $x,$y $((x-b)),$((y+a)) $((x+b)),$((y+a))" ;;
+    d) m "fill $c stroke none polygon $x,$y $((x-b)),$((y-a)) $((x+b)),$((y-a))" ;;
+  esac
+}
+
+# A horizontal dimension: extension lines up from the two witnessed points, a
+# dimension line between them with arrowheads inside, and the value sitting in
+# a gap in the middle of the line. This is ISO 129 and it is the reason a
+# drawing can be built from without anyone measuring the paper.
+hdim() { # x1 x2 y-of-dimension-line y-of-witnessed-feature label
+  local x1=$1 x2=$2 dy=$3 fy=$4 label=$5
+  local mid=$(( (x1 + x2) / 2 ))
+  local lw; lw=$(text_w 26 "$label")
+  m "stroke $INK_THIN stroke-width $THIN fill none stroke-dasharray none"
+  m "line $x1,$fy $x1,$(( dy > fy ? dy + 14 : dy - 14 ))"
+  m "line $x2,$fy $x2,$(( dy > fy ? dy + 14 : dy - 14 ))"
+  if (( x2 - x1 < lw + 60 )); then
+    # Not enough room between the witnesses to put anything between them. ISO
+    # 129 has an answer for this and it is the answer every drawing uses: move
+    # the arrowheads outside, point them back in, and set the value off to one
+    # side. Squeezing the number in anyway is how you get a dimension that
+    # reads as a different number.
+    m "line $(( x1 - 60 )),$dy $(( x2 + 60 )),$dy"
+    arrow "$x1" "$dy" r "$INK_THIN"
+    arrow "$x2" "$dy" l "$INK_THIN"
+    ltext 26 $(( x2 + 76 )) $(( dy + 9 )) "$INK_THIN" "$label"
+  else
+    local half=$(( lw / 2 + 14 ))
+    m "line $x1,$dy $(( mid - half )),$dy"
+    m "line $(( mid + half )),$dy $x2,$dy"
+    arrow "$x1" "$dy" l "$INK_THIN"
+    arrow "$x2" "$dy" r "$INK_THIN"
+    ctext 26 "$mid" $(( dy + 9 )) "$INK_THIN" "$label"
+  fi
+}
+
+vdim() { # y1 y2 x-of-dimension-line x-of-witnessed-feature label
+  local y1=$1 y2=$2 dx=$3 fx=$4 label=$5
+  local mid=$(( (y1 + y2) / 2 ))
+  local half=$(( 26 + 14 ))
+  m "stroke $INK_THIN stroke-width $THIN fill none stroke-dasharray none"
+  m "line $fx,$y1 $(( dx > fx ? dx + 14 : dx - 14 )),$y1"
+  m "line $fx,$y2 $(( dx > fx ? dx + 14 : dx - 14 )),$y2"
+  if (( y2 - y1 < 2 * half + 20 )); then
+    m "line $dx,$(( y1 - 60 )) $dx,$(( y2 + 60 ))"
+    arrow "$dx" "$y1" d "$INK_THIN"
+    arrow "$dx" "$y2" u "$INK_THIN"
+    ltext 26 $(( dx + 14 )) $(( y2 + 96 )) "$INK_THIN" "$label"
+    return
+  fi
+  m "line $dx,$y1 $dx,$(( mid - half ))"
+  m "line $dx,$(( mid + half )) $dx,$y2"
+  arrow "$dx" "$y1" u "$INK_THIN"
+  arrow "$dx" "$y2" d "$INK_THIN"
+  # Vertical dimensions read from the right on a real sheet. These read from
+  # the left, because rotating text in MVG costs a second render pass and this
+  # is a wallpaper, not a submission.
+  ltext 26 $(( dx + 14 )) $(( mid + 9 )) "$INK_THIN" "$label"
+}
+
+# A leader with a balloon on the end: the numbered circle that ties a feature
+# on the drawing to a line in the notes.
+# The pointed end gets a dot, not an arrowhead -- ISO 128 uses a dot when the
+# leader lands inside an outline and an arrow only when it lands on an edge,
+# and every one of these lands inside something.
+balloon() { # from-x from-y to-x to-y number
+  m "stroke $INK_THIN stroke-width $THIN fill none stroke-dasharray none"
+  m "line $1,$2 $3,$4"
+  m "fill $INK_THIN stroke none circle $1,$2 $(( $1 + 6 )),$2"
+  m "fill $PAPER stroke $CYAN stroke-width $THIN circle $3,$4 $(( $3 + 26 )),$4"
+  ctext 28 "$3" $(( $4 + 10 )) "$CYAN" "$5"
+}
+
+# ---------------------------------------------------------------------------
+# The sheet itself: grid, trim line, frame, zone strip, ruler ticks
+# ---------------------------------------------------------------------------
+sheet() {
+  m "font '$FONT'"
+
+  # 20px construction grid, then the 100px grid over it. Both are drawn under
+  # everything else and both are quiet enough that they never turn into the
+  # subject of the image.
+  m "stroke $GRID_FINE stroke-width 1 fill none"
+  local x y
+  for (( x = 0; x <= DW; x += 20 )); do m "line $x,0 $x,$DH"; done
+  for (( y = 0; y <= DH; y += 20 )); do m "line 0,$y $DW,$y"; done
+  m "stroke $GRID_COARSE stroke-width 1"
+  for (( x = 0; x <= DW; x += 100 )); do m "line $x,0 $x,$DH"; done
+  for (( y = 0; y <= DH; y += 100 )); do m "line 0,$y $DW,$y"; done
+
+  # The trim line: where the sheet gets cut down to size.
+  m "stroke $INK_THIN stroke-width $THIN fill none"
+  m "rectangle $TRIM,$TRIM $(( DW - TRIM )),$(( DH - TRIM ))"
+
+  # The frame. Everything that is part of the drawing lives inside it.
+  m "stroke $CYAN stroke-width $THICK fill none"
+  m "rectangle $FX0,$FY0 $FX1,$FY1"
+
+  # Zone strip. Twelve columns numbered across, eight rows lettered down, so
+  # any point on the sheet has an address you can say out loud: "the balloon in
+  # D7". The dividers run through the margin, not through the drawing.
+  m "stroke $INK_THIN stroke-width $THIN"
+  local i letters=(A B C D E F G H)
+  for (( i = 0; i <= 12; i++ )); do
+    x=$(( FX0 + FW * i / 12 ))
+    m "line $x,$(( TRIM )) $x,$FY0"
+    m "line $x,$FY1 $x,$(( DH - TRIM ))"
+  done
+  for (( i = 0; i <= 8; i++ )); do
+    y=$(( FY0 + FH * i / 8 ))
+    m "line $(( TRIM )),$y $(( TRIM + ZONE )),$y"
+    m "line $(( DW - TRIM - ZONE )),$y $(( DW - TRIM )),$y"
+  done
+  for (( i = 0; i < 12; i++ )); do
+    x=$(( FX0 + FW * i / 12 + FW / 24 ))
+    ctext 24 "$x" $(( FY0 - 14 )) "$INK_THIN" "$(( i + 1 ))"
+    ctext 24 "$x" $(( FY1 + 30 )) "$INK_THIN" "$(( i + 1 ))"
+  done
+  for (( i = 0; i < 8; i++ )); do
+    y=$(( FY0 + FH * i / 8 + FH / 16 + 9 ))
+    ctext 24 $(( TRIM + ZONE / 2 )) "$y" "$INK_THIN" "${letters[$i]}"
+    ctext 24 $(( DW - TRIM - ZONE / 2 )) "$y" "$INK_THIN" "${letters[$i]}"
+  done
+
+  # Ruler ticks along the inside of the frame: minor every 20, major every 100,
+  # numbered every 200. This is the part of a title sheet nobody ever uses and
+  # every title sheet has.
+  m "stroke $INK_THIN stroke-width 1"
+  for (( x = FX0; x <= FX1; x += 20 )); do
+    m "line $x,$FY0 $x,$(( FY0 + 7 ))"
+    m "line $x,$FY1 $x,$(( FY1 - 7 ))"
+  done
+  for (( y = FY0; y <= FY1; y += 20 )); do
+    m "line $FX0,$y $(( FX0 + 7 )),$y"
+    m "line $FX1,$y $(( FX1 - 7 )),$y"
+  done
+  m "stroke $INK_THIN stroke-width $THIN"
+  local n=0
+  for (( x = FX0; x <= FX1; x += 100 )); do
+    m "line $x,$FY0 $x,$(( FY0 + 16 ))"
+    if (( n % 2 == 0 )); then ltext 18 $(( x + 6 )) $(( FY0 + 34 )) "$GRID_COARSE" "$(( x - FX0 ))"; fi
+    n=$(( n + 1 ))
+  done
+  n=0
+  for (( y = FY0; y <= FY1; y += 100 )); do
+    m "line $FX0,$y $(( FX0 + 16 )),$y"
+    if (( n % 2 == 0 )); then ltext 18 $(( FX0 + 22 )) $(( y + 24 )) "$GRID_COARSE" "$(( y - FY0 ))"; fi
+    n=$(( n + 1 ))
+  done
+
+  # Filing holes in the binding margin, because the binding margin is for
+  # filing holes.
+  m "stroke $INK_THIN stroke-width $THIN fill none"
+  m "circle $(( TRIM + ZONE + 22 )),$(( DH / 2 - 160 )) $(( TRIM + ZONE + 22 )),$(( DH / 2 - 146 ))"
+  m "circle $(( TRIM + ZONE + 22 )),$(( DH / 2 + 160 )) $(( TRIM + ZONE + 22 )),$(( DH / 2 + 174 ))"
+}
+
+# ---------------------------------------------------------------------------
+# The title block. Every sheet gets one and every one of them is filled in.
+# ---------------------------------------------------------------------------
+titleblock() { # title  dwg-no  rev  scale  sheet-no
+  local title=$1 no=$2 rev=$3 scale=$4 sh=$5
+  local r1=$(( TBY + 74 )) r2=$(( TBY + 156 )) r3=$(( TBY + 210 ))
+
+  m "fill $PAPER stroke none rectangle $TBX,$TBY $FX1,$FY1"
+  m "fill none stroke $CYAN stroke-width $THICK rectangle $TBX,$TBY $FX1,$FY1"
+  m "stroke $INK_THIN stroke-width $THIN stroke-dasharray none"
+  m "line $TBX,$r1 $FX1,$r1"
+  m "line $TBX,$r2 $FX1,$r2"
+  m "line $TBX,$r3 $FX1,$r3"
+
+  # Row 1: who drew it.
+  ltext 38 $(( TBX + 22 )) $(( TBY + 52 )) "$CYAN" 'RITZPAH'
+  rtext 20 $(( FX1 - 22 )) $(( TBY + 48 )) "$INK_THIN" 'DRAWING OFFICE'
+
+  # Row 2: what it is.
+  ltext 34 $(( TBX + 22 )) $(( r1 + 52 )) "$INK" "$title"
+
+  # Row 3: four cells of provenance.
+  local c i
+  local -a lab=(SCALE DRAWN CHKD DATE)
+  local -a val=("$scale" 'C.OPUS' 'S.N.' '2026-08-25')
+  for i in 0 1 2 3; do
+    c=$(( TBX + TBW * i / 4 ))
+    (( i > 0 )) && m "stroke $INK_THIN stroke-width $THIN line $c,$r2 $c,$r3"
+    ltext 15 $(( c + 12 )) $(( r2 + 20 )) "$INK_THIN" "${lab[$i]}"
+    ltext 22 $(( c + 12 )) $(( r2 + 44 )) "$INK" "${val[$i]}"
+  done
+
+  # Row 4: how to ask for it again.
+  local -a lab2=('DWG NO' REV SHEET)
+  local -a val2=("$no" "$rev" "$sh")
+  # Uneven cells: the drawing number needs room, the revision needs almost none.
+  local w0=$(( TBW * 50 / 100 )) w1=$(( TBW * 22 / 100 ))
+  local -a cx=( $TBX $(( TBX + w0 )) $(( TBX + w0 + w1 )) )
+  for i in 0 1 2; do
+    (( i > 0 )) && m "stroke $INK_THIN stroke-width $THIN line ${cx[$i]},$r3 ${cx[$i]},$FY1"
+    ltext 15 $(( cx[i] + 12 )) $(( r3 + 20 )) "$INK_THIN" "${lab2[$i]}"
+    ltext 24 $(( cx[i] + 12 )) $(( r3 + 46 )) "$INK" "${val2[$i]}"
+  done
+  # The revision letter is the one field on a drawing anyone checks twice.
+  m "fill none stroke $YELLOW stroke-width $THIN rectangle $(( cx[1] + 6 )),$(( r3 + 26 )) $(( cx[1] + 62 )),$(( FY1 - 10 ))"
+}
+
+# A block of notes, top left of the drawing area. Numbered, hanging indent,
+# and the first note is always the one about units.
+notes() { # x y title then lines via stdin
+  local x=$1 y=$2 title=$3; shift 3
+  ltext 26 "$x" "$y" "$CYAN" "$title"
+  m "stroke $CYAN stroke-width $THIN line $x,$(( y + 10 )) $(( x + $(text_w 26 "$title") )),$(( y + 10 ))"
+  # A line written with leading spaces is a continuation of the note above it
+  # and gets no number. That hanging indent is the whole reason drawings number
+  # their notes the way they do: you can count the notes without reading them.
+  local num=0 row=0 line t
+  for line in "$@"; do
+    row=$(( row + 1 ))
+    t=$line
+    while [[ $t == " "* ]]; do t=${t# }; done
+    if [[ $line == " "* ]]; then
+      ltext 22 $(( x + 40 )) $(( y + 20 + row * 34 )) "$INK_THIN" "$t"
+    else
+      num=$(( num + 1 ))
+      ltext 22 "$x" $(( y + 20 + row * 34 )) "$INK_THIN" "$num."
+      ltext 22 $(( x + 40 )) $(( y + 20 + row * 34 )) "$INK_THIN" "$t"
+    fi
+  done
+}
+
+# A scale bar. It is wrong -- the sheet gets resized at the end, and a scale
+# bar on a wallpaper is decoration pretending to be information. It is here
+# because a drawing without one looks wrong, which is a different kind of true.
+scalebar() { # x y
+  local x=$1 y=$2 seg=60 i
+  for (( i = 0; i < 6; i++ )); do
+    if (( i % 2 == 0 )); then m "fill $INK stroke $INK stroke-width 1"; else m "fill $PAPER stroke $INK stroke-width 1"; fi
+    m "rectangle $(( x + i * seg )),$y $(( x + (i+1) * seg )),$(( y + 18 ))"
+  done
+  m "stroke none"
+  ltext 18 "$x" $(( y + 44 )) "$INK_THIN" '0'
+  ltext 18 $(( x + 3 * seg - 20 )) $(( y + 44 )) "$INK_THIN" '600'
+  ltext 18 $(( x + 6 * seg - 40 )) $(( y + 44 )) "$INK_THIN" '1200 px'
+}
+
+# ---------------------------------------------------------------------------
+# Rendering
+# ---------------------------------------------------------------------------
+
+# Draw an MVG file onto the paper.
+render() { # mvg out.png
+  magick -size "${DW}x${DH}" "xc:$PAPER" -draw @"$1" "$2"
+}
+
+# Draw an MVG file onto transparency and punch it through a mask, for anything
+# that has to be clipped to a region -- hatching, the isometric grid. MVG's own
+# clip paths work, barely; a mask is one more file and no arguing.
+#
+# The alphas have to be MULTIPLIED, not replaced. CopyOpacity straight from the
+# mask sets every pixel inside the region opaque, and the pixels inside the
+# region that were never drawn on are transparent black -- so the region comes
+# out as a black rectangle with some lines in it, which is exactly as wrong as
+# it sounds. Extract the layer's own alpha, multiply the mask into it, put it
+# back.
+masked() { # content.mvg mask.mvg out.png
+  magick -size "${DW}x${DH}" xc:none -draw @"$1" "$TMP/_c.png"
+  magick -size "${DW}x${DH}" xc:black -fill white -stroke none -draw @"$2" "$TMP/_m.png"
+  magick "$TMP/_c.png" -alpha extract "$TMP/_a.png"
+  magick "$TMP/_a.png" "$TMP/_m.png" -compose multiply -composite "$TMP/_a2.png"
+  magick "$TMP/_c.png" "$TMP/_a2.png" -compose CopyOpacity -composite "$3"
+}
+
+# Paper finish. Four passes, all of them small, none of them allowed to cost
+# legibility -- which is the whole claim of this theme and therefore the only
+# real constraint on this function.
+#
+#   1. ink bleed    a 2px halo screened back on, because ink sinks into paper
+#   2. mottle       heavily blurred plasma at +/-4%, so the wash is not flat
+#   3. grain        a hair of Gaussian noise; also dithers JPEG's 8x8 blocks
+#   4. vignette     the corners of a sheet were always further from the lamp
+finish() { # in.png out.jpg
+  magick -size "${DW}x${DH}" plasma:fractal -colorspace Gray \
+    -blur 0x40 -auto-level +level 46%,54% "$TMP/_mottle.png"
+  magick -size "${DW}x${DH}" radial-gradient:'gray(100%)-gray(84%)' "$TMP/_vig.png"
+
+  magick "$1" \
+    \( +clone -blur 0x2 -evaluate multiply 0.30 \) -compose screen -composite \
+    "$TMP/_mottle.png" -compose overlay -composite \
+    "$TMP/_vig.png" -compose multiply -composite \
+    -attenuate 0.14 +noise Gaussian \
+    -resize "${W}x${H}!" \
+    -sampling-factor 4:2:0 -quality 90 "$2"
+}
+
+# ===========================================================================
+echo "1-sheet-a"
+# The daily driver. A sheet with nothing drawn on it yet: grid, frame, zones,
+# ticks, notes, scale bar, title block. This is the one that is actually behind
+# your windows all day, and the reason it is empty is that a wallpaper you can
+# still see at 17:00 is a wallpaper with nothing in the middle of it.
+MVG="$TMP/1.mvg"; : > "$MVG"
+sheet
+notes $(( FX0 + 60 )) $(( FY0 + 80 )) 'GENERAL NOTES' \
+  'ALL DIMENSIONS IN PIXELS UNLESS NOTED OTHERWISE.' \
+  'DO NOT SCALE FROM THIS DRAWING.' \
+  'ALL COLOURS CLEAR 7:1 AGAINST THE PAPER. THIS IS' \
+  '   THE ONLY RULE THE PALETTE HAS.' \
+  'ANIMATION DURATIONS SHOWN ARE MAXIMA, NOT TARGETS.' \
+  'THIS SHEET IS EMPTY IN THE MIDDLE BECAUSE THAT IS' \
+  '   WHERE YOUR TERMINAL GOES.'
+scalebar $(( FX0 + 60 )) $(( FY1 - 120 ))
+# A revision triangle in the corner, empty, waiting.
+m "fill none stroke $INK_THIN stroke-width $THIN polygon $(( FX1 - 120 )),$(( FY0 + 40 )) $(( FX1 - 160 )),$(( FY0 + 100 )) $(( FX1 - 80 )),$(( FY0 + 100 ))"
+ctext 26 $(( FX1 - 120 )) $(( FY0 + 92 )) "$INK_THIN" '-'
+titleblock 'GENERAL ARRANGEMENT' 'RZP-BP-001' '-' '1:1' '1 OF 5'
+render "$MVG" "$TMP/1.png"
+finish "$TMP/1.png" "$OUT/1-sheet-a.jpg"
+
+# ===========================================================================
+echo "2-elevation"
+# An orthographic elevation of a window. Not a window in a wall: a window in
+# the compositor, drawn to the same conventions a machinist would get, with the
+# border thickness dimensioned and the rounding radius called out as R0.
+MVG="$TMP/2.mvg"; : > "$MVG"
+sheet
+EX0=$(( FX0 + 420 )); EY0=$(( FY0 + 220 )); EX1=$(( EX0 + 1000 )); EY1=$(( EY0 + 620 ))
+CX=$(( (EX0 + EX1) / 2 )); CY=$(( (EY0 + EY1) / 2 ))
+
+# Centre lines: long dash, short dash, long dash. Thin, and they run past the
+# object at both ends, which is how you tell a centre line from an edge.
+m "stroke $CYAN stroke-width $THIN fill none stroke-dasharray 40 10 8 10"
+m "line $CX,$(( EY0 - 60 )) $CX,$(( EY1 + 60 ))"
+m "line $(( EX0 - 60 )),$CY $(( EX1 + 60 )),$CY"
+m "stroke-dasharray none"
+
+# The window: outer edge thick, inner edge thick, the 2px border between them
+# shown at scale because at 1:1 a 2px border is 2px and you would not see it.
+m "stroke $INK stroke-width $THICK fill none"
+m "rectangle $EX0,$EY0 $EX1,$EY1"
+m "stroke $CYAN stroke-width $THICK"
+m "rectangle $(( EX0 + 14 )),$(( EY0 + 14 )) $(( EX1 - 14 )),$(( EY1 - 14 ))"
+
+# Hidden edges: the far side of the window, which exists and which you cannot
+# see, so it is dashed.
+m "stroke $INK_THIN stroke-width $THIN stroke-dasharray 18 12"
+m "line $(( EX0 + 60 )),$(( EY0 + 60 )) $(( EX1 - 60 )),$(( EY0 + 60 ))"
+m "line $(( EX0 + 60 )),$(( EY0 + 60 )) $(( EX0 + 60 )),$(( EY1 - 60 ))"
+m "stroke-dasharray none"
+
+hdim "$EX0" "$EX1" $(( EY1 + 130 )) $(( EY1 + 14 )) '1000'
+vdim "$EY0" "$EY1" $(( EX1 + 150 )) $(( EX1 + 14 )) '620'
+hdim $(( EX0 + 14 )) $(( EX1 - 14 )) $(( EY0 - 110 )) $(( EY0 + 14 )) '972'
+
+balloon $(( EX0 + 7 )) $(( EY0 + 40 )) $(( EX0 - 150 )) $(( EY0 - 60 )) 1
+balloon "$CX" $(( EY1 - 7 )) $(( CX + 300 )) $(( EY1 + 240 )) 2
+
+notes $(( FX0 + 60 )) $(( FY1 - 300 )) 'PARTS LIST' \
+  'BORDER, 2px, ISO 128 THICK, RGBA 4DD2FFFF.' \
+  'CORNER, R0. THE RADIUS IS ZERO AND IT IS STILL' \
+  '   CALLED OUT, BECAUSE A CORNER WITHOUT A RADIUS' \
+  '   NOTE IS A CORNER SOMEONE FORGOT TO SPECIFY.'
+titleblock 'WINDOW, FRONT ELEVATION' 'RZP-BP-002' 'A' '1:1' '2 OF 5'
+render "$MVG" "$TMP/2.png"
+finish "$TMP/2.png" "$OUT/2-elevation.jpg"
+
+# ===========================================================================
+echo "3-detail"
+# DETAIL A at 4:1: a section cut through the top-left corner of that window,
+# hatched. Section hatching is the one thing on a drawing that has to be
+# generated rather than drawn -- parallel 45-degree lines, evenly spaced,
+# clipped to the cut face -- so it is generated, on its own layer, and masked.
+MVG="$TMP/3.mvg"; : > "$MVG"
+sheet
+
+DX0=$(( FX0 + 380 )); DY0=$(( FY0 + 180 )); DX1=$(( DX0 + 900 )); DY1=$(( DY0 + 620 ))
+BT=90   # border thickness at 4:1
+
+# The cut faces: an L of border stock, 90px thick at this scale.
+m "stroke $INK stroke-width $THICK fill none"
+m "polygon $DX0,$DY0 $DX1,$DY0 $DX1,$(( DY0 + BT )) $(( DX0 + BT )),$(( DY0 + BT )) $(( DX0 + BT )),$DY1 $DX0,$DY1"
+
+# Centre line through the stock.
+m "stroke $CYAN stroke-width $THIN stroke-dasharray 40 10 8 10"
+m "line $(( DX0 + BT / 2 )),$(( DY0 - 60 )) $(( DX0 + BT / 2 )),$(( DY1 + 60 ))"
+m "line $(( DX0 - 60 )),$(( DY0 + BT / 2 )) $(( DX1 + 60 )),$(( DY0 + BT / 2 ))"
+m "stroke-dasharray none"
+
+# The detail bubble: a thin circle round the feature, with a leader out to a
+# label. On a real set this circle is on the parent sheet and the enlargement
+# is here; on a wallpaper both can be in the same place and nobody files a
+# complaint.
+m "stroke $YELLOW stroke-width $THIN fill none"
+m "circle $(( DX0 + BT / 2 )),$(( DY0 + BT / 2 )) $(( DX0 + BT / 2 + 150 )),$(( DY0 + BT / 2 ))"
+m "line $(( DX0 + 116 )),$(( DY0 - 44 )) $(( DX0 + 300 )),$(( DY0 - 120 ))"
+ltext 30 $(( DX0 + 314 )) $(( DY0 - 110 )) "$YELLOW" 'DETAIL A  (4:1)'
+
+hdim "$DX0" $(( DX0 + BT )) $(( DY1 + 120 )) "$DY1" '2 x 4'
+vdim "$DY0" $(( DY0 + BT )) $(( DX1 + 160 )) "$DX1" '2 x 4'
+
+notes $(( FX0 + 60 )) $(( FY1 - 340 )) 'SECTION NOTES' \
+  'HATCH AT 45 DEG, 26px PITCH, ISO 128 THIN.' \
+  'ONE MATERIAL, SO ONE HATCH ANGLE. A SECOND' \
+  '   MATERIAL WOULD GET 45 DEG THE OTHER WAY.' \
+  'CUT FACES SHOWN THICK. EVERYTHING BEHIND THE' \
+  '   CUT PLANE IS OMITTED, NOT DASHED.'
+titleblock 'DETAIL A - CORNER' 'RZP-BP-003' 'A' '4:1' '3 OF 5'
+render "$MVG" "$TMP/3.png"
+
+# Hatching, on its own layer. 45-degree lines across the whole sheet, then
+# masked down to the L of cut face.
+HM="$TMP/3h.mvg"; : > "$HM"; MVG="$HM"
+m "stroke $INK_THIN stroke-width $THIN fill none"
+for (( k = -DH; k < DW; k += 26 )); do m "line $k,0 $(( k + DH )),$DH"; done
+HK="$TMP/3k.mvg"; : > "$HK"; MVG="$HK"
+m "polygon $DX0,$DY0 $DX1,$DY0 $DX1,$(( DY0 + BT )) $(( DX0 + BT )),$(( DY0 + BT )) $(( DX0 + BT )),$DY1 $DX0,$DY1"
+masked "$HM" "$HK" "$TMP/3hatch.png"
+magick "$TMP/3.png" "$TMP/3hatch.png" -compose over -composite "$TMP/3c.png"
+finish "$TMP/3c.png" "$OUT/3-detail.jpg"
+
+# ===========================================================================
+echo "4-isometric"
+# Three workspaces, drawn in isometric projection, on an isometric grid.
+# Isometric means the three axes are 120 degrees apart on the page, which on a
+# screen means two families of lines at +/-30 degrees and one vertical. The
+# grid is generated and masked to the drawing area, same as the hatch.
+MVG="$TMP/4.mvg"; : > "$MVG"
+sheet
+titleblock 'AXONOMETRIC - WORKSPACE STACK' 'RZP-BP-004' 'A' 'NTS' '4 OF 5'
+notes $(( FX0 + 60 )) $(( FY0 + 80 )) 'PROJECTION' \
+  'ISOMETRIC. AXES AT 120 DEG ON THE PAGE.' \
+  'NOT TO SCALE - AN ISOMETRIC VIEW HAS ONE SCALE' \
+  '   ALONG THE AXES AND A DIFFERENT ONE ACROSS THEM,' \
+  '   WHICH IS WHY THE SCALE FIELD READS NTS.' \
+  'THREE WORKSPACES SHOWN. YOU HAVE MORE.'
+render "$MVG" "$TMP/4.png"
+
+# The isometric grid, masked into the drawing area right of the notes.
+GM="$TMP/4g.mvg"; : > "$GM"; MVG="$GM"
+m "stroke #1d3b55 stroke-width 1 fill none"
+# tan(30) is 1/sqrt(3); at 2px per step the rise is 1154 per 2000 of run.
+for (( k = -2 * DH; k < 2 * DW; k += 70 )); do
+  m "line $k,0 $(( k + DH * 1000 / 577 )),$DH"
+  m "line $(( k + DH * 1000 / 577 )),0 $k,$DH"
+done
+for (( k = 0; k < DW; k += 70 )); do m "line $k,0 $k,$DH"; done
+GK="$TMP/4k.mvg"; : > "$GK"; MVG="$GK"
+m "rectangle $(( FX0 + 840 )),$(( FY0 + 40 )) $(( FX1 - 40 )),$(( TBY - 40 ))"
+masked "$GM" "$GK" "$TMP/4grid.png"
+magick "$TMP/4.png" "$TMP/4grid.png" -compose over -composite "$TMP/4b.png"
+
+# The three sheets themselves, drawn over the grid.
+MVG="$TMP/4o.mvg"; : > "$MVG"
+m "font '$FONT'"
+iso_plate() { # cx cy halfwidth label
+  local cx=$1 cy=$2 hw=$3 lab=$4
+  local dy=$(( hw * 577 / 1000 ))   # the 30-degree rise across the half width
+  m "fill $PAPER fill-opacity 0.85 stroke $CYAN stroke-width $THICK"
+  m "polygon $cx,$(( cy - dy )) $(( cx + hw )),$cy $cx,$(( cy + dy )) $(( cx - hw )),$cy"
+  m "fill-opacity 1"
+  # A window on the plate, in the same projection.
+  m "fill none stroke $INK stroke-width $THIN"
+  local qw=$(( hw * 52 / 100 )) qd=$(( dy * 52 / 100 ))
+  m "polygon $cx,$(( cy - qd )) $(( cx + qw )),$cy $cx,$(( cy + qd )) $(( cx - qw )),$cy"
+  m "fill $INK stroke none font-size 30 text $(( cx - hw - 90 )),$(( cy + 10 )) '$lab'"
+}
+IC=$(( FX0 + 840 + (FX1 - 40 - FX0 - 840) / 2 ))
+iso_plate "$IC" $(( FY0 + 330 )) 380 'WS 3'
+iso_plate "$IC" $(( FY0 + 560 )) 380 'WS 2'
+iso_plate "$IC" $(( FY0 + 790 )) 380 'WS 1'
+# The vertical axis, dash-dot, through all three.
+m "stroke $CYAN stroke-width $THIN fill none stroke-dasharray 40 10 8 10"
+m "line $IC,$(( FY0 + 120 )) $IC,$(( FY0 + 980 ))"
+m "stroke-dasharray none"
+vdim $(( FY0 + 330 )) $(( FY0 + 790 )) $(( IC + 500 )) $(( IC + 380 )) '2 GAPS'
+magick "$TMP/4b.png" -draw @"$MVG" "$TMP/4c.png"
+finish "$TMP/4c.png" "$OUT/4-isometric.jpg"
+
+# ===========================================================================
+echo "5-revision"
+# The general arrangement, come back from the checker. Everything red on this
+# sheet is markup and nothing red on this sheet is part of the drawing, which
+# is exactly the deal the palette makes with red: it is the one colour that
+# only ever means "this is wrong".
+MVG="$TMP/5.mvg"; : > "$MVG"
+sheet
+
+RX0=$(( FX0 + 460 )); RY0=$(( FY0 + 260 )); RX1=$(( RX0 + 900 )); RY1=$(( RY0 + 520 ))
+m "stroke $INK stroke-width $THICK fill none"
+m "rectangle $RX0,$RY0 $RX1,$RY1"
+m "stroke $CYAN stroke-width $THICK"
+m "rectangle $(( RX0 + 14 )),$(( RY0 + 14 )) $(( RX1 - 14 )),$(( RY1 - 14 ))"
+hdim "$RX0" "$RX1" $(( RY1 + 130 )) $(( RY1 + 14 )) '900'
+
+# The struck-through dimension. The old value stays legible with a line through
+# it, because a checker who erases the old number has destroyed the evidence.
+m "stroke $RED stroke-width $THIN fill none stroke-dasharray none"
+m "line $(( (RX0 + RX1) / 2 - 70 )),$(( RY1 + 130 )) $(( (RX0 + RX1) / 2 + 70 )),$(( RY1 + 130 ))"
+ltext 26 $(( (RX0 + RX1) / 2 + 100 )) $(( RY1 + 139 )) "$RED" '972'
+
+# A revision cloud round the changed region: scalloped arcs, one bump per
+# 70px, bulging away from what they enclose.
+cloud() { # x0 y0 x1 y1
+  local x0=$1 y0=$2 x1=$3 y1=$4 r=35 x y
+  m "fill none stroke $RED stroke-width $THIN stroke-dasharray none"
+  for (( x = x0; x + 2 * r <= x1; x += 2 * r )); do
+    m "arc $x,$(( y0 - r )) $(( x + 2 * r )),$(( y0 + r )) 180,360"
+    m "arc $x,$(( y1 - r )) $(( x + 2 * r )),$(( y1 + r )) 0,180"
+  done
+  for (( y = y0; y + 2 * r <= y1; y += 2 * r )); do
+    m "arc $(( x0 - r )),$y $(( x0 + r )),$(( y + 2 * r )) 90,270"
+    m "arc $(( x1 - r )),$y $(( x1 + r )),$(( y + 2 * r )) -90,90"
+  done
+}
+cloud $(( RX0 - 60 )) $(( RY0 - 60 )) $(( RX1 + 60 )) $(( RY1 + 60 ))
+
+# The revision flag: a triangle with the revision letter in it, sitting on the
+# cloud, so the cloud and the table in the title block point at each other.
+m "fill $RED stroke none polygon $(( RX1 + 90 )),$(( RY0 - 100 )) $(( RX1 + 46 )),$(( RY0 - 30 )) $(( RX1 + 134 )),$(( RY0 - 30 ))"
+ctext 30 $(( RX1 + 90 )) $(( RY0 - 40 )) "$PAPER" 'C'
+
+notes $(( FX0 + 60 )) $(( FY1 - 300 )) 'REVISION HISTORY' \
+  ' A  ISSUED FOR COMMENT.            2026-08-25' \
+  ' B  BORDER 3px -> 2px PER ISO 128. 2026-08-25' \
+  ' C  RED LIGHTENED TO CLEAR 7:1.    2026-08-25'
+titleblock 'GENERAL ARRANGEMENT' 'RZP-BP-001' 'C' '1:1' '5 OF 5'
+render "$MVG" "$TMP/5.png"
+finish "$TMP/5.png" "$OUT/5-revision.jpg"
+
+echo
+echo "wrote 5 backgrounds to $OUT"
+ls -l "$OUT" | awk 'NR>1 { printf "  %-22s %6.2f MB\n", $9, $5/1048576 }'

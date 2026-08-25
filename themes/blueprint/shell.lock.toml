@@ -1,0 +1,16 @@
+# The lock screen is the sheet rolled up and the drawer locked. Nothing on it
+# is translucent and nothing on it is dim: placeholder text clears 7.97:1,
+# because a lock screen read in bad light at the wrong angle is the single
+# worst-lit surface any theme has to survive.
+[lock]
+background       = "#08131f"
+background-alpha = 1.0
+text             = "#d6ecf5"
+placeholder      = "#8fb4c9"
+text-error       = "#ff7b86"
+border           = "#1d3b55"
+border-active    = "#4dd2ff"
+border-error     = "#ff7b86"
+border-alpha     = 1.0
+selection        = "#1d3b55"
+selection-alpha  = 1.0

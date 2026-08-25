@@ -1,0 +1,8 @@
+# A tooltip is a leader note: it points at something and it is smaller and
+# darker than the thing it points at.
+[tooltip]
+background       = "#050d16"
+background-alpha = 1.0
+text             = "#d6ecf5"
+border           = "#3d6a8c"
+border-alpha     = 1.0

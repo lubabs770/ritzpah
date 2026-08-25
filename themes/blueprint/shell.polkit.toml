@@ -1,0 +1,14 @@
+# A password prompt that failed is the one moment the theme is allowed to be
+# loud, and it can afford to be: red here is #ff7b86 at 7.04:1, brighter than
+# the body text it interrupts rather than dimmer.
+[polkit]
+background       = "#0b1a2b"
+background-alpha = 1.0
+text             = "#d6ecf5"
+text-error       = "#ff7b86"
+border           = "#4dd2ff"
+border-error     = "#ff7b86"
+border-alpha     = 1.0
+scrim            = "#050d16"
+scrim-alpha      = 0.78
+accent           = "#4dd2ff"

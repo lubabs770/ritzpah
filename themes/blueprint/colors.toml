@@ -1,0 +1,59 @@
+# Blueprint - cyan-white ink on deep navy, drawn to a standard.
+#
+# The rule this palette is built on: every single colour in it clears 7:1
+# against the background. Not 4.5:1, the WCAG AA floor that most dark themes
+# sit on and that the other themes in this repo openly sit on. 7:1 is AAA for
+# normal-size body text, and it is the reason this is the one theme here you
+# can still read at hour eight.
+#
+# The floor binds the hard case too. `red` is the slot that always loses this
+# argument -- it has low luminance and it is the one thing you must never miss
+# -- so red was lightened until it cleared, and it lands at 7.04:1, the first
+# value on the right side of the line.
+mode = "dark"
+
+# The drawing ink, and the paper it soaks into.
+accent = "#4dd2ff"
+selection = "#1d3b55"
+muted = "#8fb4c9"
+
+# Paper. A cyanotype is not black; it is a very dark, very saturated blue,
+# because the pigment is Prussian blue and Prussian blue is what is left.
+background = "#0b1a2b"
+dark_background = "#08131f"
+darker_background = "#050d16"
+lighter_background = "#12293f"
+
+foreground = "#d6ecf5"
+# Dimension text and comments. This is the darkest ink on the sheet, and it is
+# darkest because 7:1 is where it stopped, not because it looked about right.
+dark_foreground = "#82aac0"
+light_foreground = "#e8f6fd"
+bright_foreground = "#ffffff"
+
+# The pencil tray. On a real set of construction drawings the coloured pencils
+# are not decoration -- each one means something, and the meanings are noted
+# here because they are also how the slots were assigned.
+red = "#ff7b86"      # revision markup, demolition, things that are wrong  7.04:1
+magenta = "#e08cff"  # setting-out points and reference geometry           7.82:1
+blue = "#7fb3e0"     # notes, references to other sheets                   7.88:1
+brown = "#d0a97c"    # earth, existing grade, the table itself             8.06:1
+orange = "#ff9e5c"   # temporary works, anything not yet approved          8.60:1
+green = "#5fd6a4"    # existing to remain                                  9.73:1
+cyan = "#5ad7ff"     # the ink; visible edges, the drawing itself         10.53:1
+yellow = "#ffd166"   # highlighter, section marks, hold points            12.17:1
+
+# Bright variants are the same pencil pressed harder. Every one of them clears
+# 10:1, so nothing marked "bright" is ever the thing you cannot read.
+bright_red = "#ffb0b8"
+bright_yellow = "#ffe29a"
+bright_green = "#8fe8c8"
+bright_cyan = "#a6e3ff"
+bright_blue = "#a8ccef"
+bright_magenta = "#eeb0ff"
+
+# One stop, no angle. ISO 128 line weights are constant along the length of the
+# line; a gradient border would be a shaded line, and a shaded line means
+# something else.
+hyprland_active_border = "rgba(4dd2ffff)"
+hyprland_inactive_border = "rgba(1d3b55ff)"

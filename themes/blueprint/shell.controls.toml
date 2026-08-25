@@ -1,0 +1,39 @@
+# Control states, as a drafting line-weight scale. A state is not a colour
+# change here, it is how heavily the line is drawn -- except for focus, which
+# is the one state that gets the ink, because knowing where the keyboard is
+# pointing is worth breaking a rule for.
+[controls]
+# Normal: a thin construction line. Present, not asserting anything.
+normal-color        = "#d6ecf5"
+normal-fill-alpha   = 0.0
+normal-border       = "#1d3b55"
+normal-border-width = 1
+normal-border-alpha = 1.0
+
+# Hover: the same line, inked in.
+hover-cursor-color        = "#e8f6fd"
+hover-cursor-fill-alpha   = 0.08
+hover-cursor-border       = "#3d6a8c"
+hover-cursor-border-width = 1
+hover-cursor-border-alpha = 1.0
+
+# Focus: 2px of cyan, the visible-edge weight. Deliberately louder than hover,
+# because hover is where the mouse happens to be and focus is where the next
+# keystroke is going.
+focus-color        = "#ffffff"
+focus-fill-alpha   = 0.1
+focus-border       = "#4dd2ff"
+focus-border-width = 2
+focus-border-alpha = 1.0
+
+# Selected: the row you are on. White text on the composited fill measures
+# 11.79:1, which is the highest-contrast pairing anywhere in the theme, on
+# purpose.
+selected-color        = "#ffffff"
+selected-fill-alpha   = 0.18
+selected-border       = "#4dd2ff"
+selected-border-width = 1
+selected-border-alpha = 1.0
+
+pressed-fill-alpha   = 0.3
+selection-fill-alpha = 0.34

@@ -1,0 +1,9 @@
+# Every surface in this theme is fully opaque. Tracing paper laid over a
+# drawing is how you end up reading both and understanding neither.
+[popups]
+background       = "#0b1a2b"
+background-alpha = 1.0
+text             = "#d6ecf5"
+border           = "#4dd2ff"
+border-alpha     = 1.0
+border-width     = 1

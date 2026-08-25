@@ -1,0 +1,16 @@
+[launcher]
+background                = "#0b1a2b"
+background-alpha          = 1.0
+text                      = "#d6ecf5"
+border                    = "#4dd2ff"
+border-alpha              = 1.0
+# The scrim is heavy. The launcher is the only thing you are reading while it
+# is open, so everything behind it stops competing for the eight seconds it
+# is up.
+scrim                     = "#050d16"
+scrim-alpha               = 0.72
+selected-background       = "#4dd2ff"
+selected-background-alpha = 0.18
+selected-text             = "#ffffff"
+selected-border           = "#4dd2ff"
+selected-border-alpha     = 1.0

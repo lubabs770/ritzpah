@@ -65,6 +65,22 @@ write-up](themes/cathode/README.md).
 
 ![Palette](docs/cathode-palette.png)
 
+### Blueprint
+
+Cyan-white ink on deep navy, drawn to a standard. The useful one: no shader, no
+full-damage redraw, nothing over 120ms, every surface opaque, and a palette
+built on a single rule — **every colour used as text clears 7:1 against the
+background**, which is AAA rather than the 4.5:1 the rest of this repo sits on.
+Red had to become pink to make that floor and the write-up says so. The excess
+went into the rigour instead of the look: ISO 128 line weights, ISO 129
+dimensioning, and wallpapers that are real technical sheets with zone strips,
+ruler ticks, filed revision histories and drawn filing holes. [Full
+write-up](themes/blueprint/README.md).
+
+![Blueprint](themes/blueprint/preview.png)
+
+![Palette](docs/blueprint-palette.png)
+
 ## Repo layout
 
 ```
@@ -74,6 +90,7 @@ tools/make-backgrounds             regenerates Acid Vortex's wallpapers
 tools/make-backgrounds-ego-death   regenerates Ego Death's wallpapers
 tools/make-backgrounds-untitled    regenerates Untitled's wallpapers
 tools/make-backgrounds-cathode     regenerates Cathode's wallpapers
+tools/make-backgrounds-blueprint   regenerates Blueprint's wallpapers
 tools/make-palette-untitled        derives Untitled's colors.toml from scratch
 docs/                              preview images used by the READMEs
 ```

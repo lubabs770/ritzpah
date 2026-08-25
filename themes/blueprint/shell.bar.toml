@@ -1,0 +1,14 @@
+# The bar is the sheet's top margin: the zone strip, where the drawing number
+# and the revision live. Opaque, because a margin you can see through is a
+# margin you have to look twice at.
+[bar]
+background       = "#08131f"
+background-alpha = 1.0
+text             = "#d6ecf5"
+# Recording, alerts and updates. This is the theme's red, and it clears 7:1
+# against the bar -- the whole point of lightening it in colors.toml was so
+# that the one thing you must not miss is not also the dimmest thing up here.
+active           = "#ff7b86"
+scale-with-font  = true
+size-horizontal  = 26
+size-vertical    = 28

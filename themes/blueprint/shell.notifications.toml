@@ -1,0 +1,11 @@
+# A notification is a revision balloon: it appears on the sheet, it has a
+# border in the ink colour so you cannot mistake it for part of the drawing,
+# and it goes away.
+[notifications]
+background       = "#0b1a2b"
+background-alpha = 1.0
+text             = "#d6ecf5"
+border           = "#4dd2ff"
+border-alpha     = 1.0
+border-width     = 2
+countdown        = "#4dd2ff"
