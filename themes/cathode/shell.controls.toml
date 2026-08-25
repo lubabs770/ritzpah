@@ -1,0 +1,29 @@
+# One phosphor here too: no control state changes hue, they change how hard the
+# gun is driving that area. Fill alpha is beam current.
+[controls]
+normal-color        = "#ffb000"
+normal-fill-alpha   = 0.06
+normal-border       = "#8a5c00"
+normal-border-width = 1
+normal-border-alpha = 0.8
+
+hover-cursor-color        = "#ffc94d"
+hover-cursor-fill-alpha   = 0.16
+hover-cursor-border       = "#ffb000"
+hover-cursor-border-width = 1
+hover-cursor-border-alpha = 0.9
+
+focus-color        = "#ffd166"
+focus-fill-alpha   = 0.2
+focus-border       = "#ffd166"
+focus-border-width = 2
+focus-border-alpha = 1.0
+
+selected-color        = "#fff1c9"
+selected-fill-alpha   = 0.34
+selected-border       = "#ffd166"
+selected-border-width = 2
+selected-border-alpha = 1.0
+
+pressed-fill-alpha   = 0.48
+selection-fill-alpha = 0.55

@@ -1,0 +1,10 @@
+[notifications]
+background       = "#060400"
+background-alpha = 0.75
+text             = "#ffb000"
+border           = "hyprland.active-border"
+border-alpha     = 1.0
+border-width     = 2
+# The countdown is the only element that has to read as it drains, so it sits
+# at the top of the ramp rather than on the base phosphor.
+countdown        = "#ffd166"

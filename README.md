@@ -50,6 +50,21 @@ at the switch. [Full write-up](themes/untitled/README.md).
 
 ![Palette](docs/untitled-palette.png)
 
+### Cathode
+
+A terminal nobody ever switched off. Amber phosphor on near-black, and a second
+GLSL shader over the whole compositor output — barrel distortion, 720 scanlines,
+an aperture grille and phosphor bloom, so the desktop is not themed like a CRT,
+it is displayed on one. One phosphor means one colour: every ANSI slot sits on
+the same amber line and differs only in beam current, except `red`, which is the
+single thing on the screen allowed to be a different colour at all. Costs
+battery for the same reason Ego Death does. [Full
+write-up](themes/cathode/README.md).
+
+![Cathode](themes/cathode/preview.png)
+
+![Palette](docs/cathode-palette.png)
+
 ## Repo layout
 
 ```
@@ -58,13 +73,14 @@ themes/<name>/                     one theme, in Omarchy's own layout
 tools/make-backgrounds             regenerates Acid Vortex's wallpapers
 tools/make-backgrounds-ego-death   regenerates Ego Death's wallpapers
 tools/make-backgrounds-untitled    regenerates Untitled's wallpapers
+tools/make-backgrounds-cathode     regenerates Cathode's wallpapers
 tools/make-palette-untitled        derives Untitled's colors.toml from scratch
 docs/                              preview images used by the READMEs
 ```
 
-No wallpaper here was downloaded. Both generators build every image from plasma
-noise and gradients with ImageMagick, so the recipes ship instead of the
-provenance questions.
+No wallpaper here was downloaded. Every generator builds its images from plasma
+noise, gradients and drawing primitives with ImageMagick, so the recipes ship
+instead of the provenance questions.
 
 ## Adding a theme
 

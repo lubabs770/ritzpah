@@ -1,0 +1,12 @@
+# The bar is the status line burned along the top of the tube. Mostly
+# transparent, so the shader's roll bar passes straight through it.
+[bar]
+background       = "#0a0803"
+background-alpha = 0.35
+text             = "#ffb000"
+# Recording, alerts and updates get the one colour on the screen that is not
+# amber. See the note about red in colors.toml.
+active           = "#ff4d14"
+scale-with-font  = true
+size-horizontal  = 26
+size-vertical    = 28

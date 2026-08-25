@@ -1,0 +1,240 @@
+#!/usr/bin/env bash
+#
+# Regenerate the Cathode wallpaper set with ImageMagick.
+#
+#   tools/make-backgrounds-cathode [output-dir] [width] [height]
+#
+# Defaults to themes/cathode/backgrounds at 2560x1440. Nothing here is a
+# photograph of a monitor. Every image is drawn flat in amber, then pushed
+# through the same "tube" pipeline the screen shader runs in real time: bloom,
+# scanlines, aperture grille, barrel distortion, rounded glass, vignette. The
+# wallpapers and phosphor.frag are deliberately the same set of effects, so a
+# window sitting on the wallpaper does not look like it is on a different
+# screen from the wallpaper.
+
+set -euo pipefail
+
+OUT="${1:-$(dirname "$0")/../themes/cathode/backgrounds}"
+W="${2:-2560}"
+H="${3:-1440}"
+
+command -v magick >/dev/null || { echo "ImageMagick 7 (magick) is required" >&2; exit 1; }
+
+# Any installed monospace font works. Set CATHODE_FONT to override; otherwise
+# take the first of these that ImageMagick actually has. Note the here-string:
+# piping into `grep -q` under `set -o pipefail` fails the whole pipeline, because
+# grep exits on the first match and ImageMagick dies of SIGPIPE behind it.
+FONT_LIST=$(magick -list font)
+FONT=""
+for candidate in "${CATHODE_FONT:-}" Liberation-Mono DejaVu-Sans-Mono Noto-Sans-Mono \
+                 JetBrainsMono-NF-Regular Nimbus-Mono-PS-Regular Courier; do
+  [ -n "$candidate" ] || continue
+  if grep -q "Font: ${candidate}$" <<<"$FONT_LIST"; then FONT="$candidate"; break; fi
+done
+[ -n "$FONT" ] || { echo "no usable monospace font found by ImageMagick" >&2; exit 1; }
+
+AMBER='#ffb000'
+HOT='#ffd9a0'
+DIM='#7a5200'
+
+mkdir -p "$OUT"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+# One tube pass. Input is a flat amber-on-black image at full size; output is a
+# JPEG that looks like it was taken off the front of the glass.
+#
+#   1. bloom       phosphor spills into its neighbours, brightest parts most
+#   2. scanlines   a fixed 720-line tile, not one line per output pixel
+#   3. grille      three-pixel triads, barely there on purpose
+#   4. barrel      the picture bows toward you; the corners pull away
+#   5. glass       rounded mask, because a tube corner is not a rectangle
+#   6. vignette    the gun cannot drive the edges as hard as the middle
+tube() { # $1 = flat input  $2 = jpg output
+  local scanh=$(( H / 2 ))
+
+  # Scanline tile: two bright rows, one dark gap, scaled so the whole screen
+  # ends up with 720 of them regardless of the output height.
+  magick -size 1x3 xc:'gray(100%)' \
+    -fill 'gray(100%)' -draw 'point 0,0' \
+    -fill 'gray(88%)'  -draw 'point 0,1' \
+    -fill 'gray(52%)'  -draw 'point 0,2' "$TMP/scanpx.png"
+  magick -size "1x${scanh}" tile:"$TMP/scanpx.png" \
+    -resize "${W}x${H}!" "$TMP/scan.png"
+
+  # Aperture grille: every third column loses a little current.
+  magick -size 3x1 xc:'gray(100%)' \
+    -fill 'gray(100%)' -draw 'point 0,0' \
+    -fill 'gray(100%)' -draw 'point 1,0' \
+    -fill 'gray(87%)'  -draw 'point 2,0' "$TMP/grillepx.png"
+  magick -size "${W}x${H}" tile:"$TMP/grillepx.png" "$TMP/grille.png"
+
+  magick "$1" \
+    \( +clone -blur 0x18 -evaluate multiply 0.85 \) -compose screen -composite \
+    \( +clone -blur 0x3  -evaluate multiply 0.55 \) -compose screen -composite \
+    "$TMP/bloomed.png"
+
+  magick "$TMP/bloomed.png" "$TMP/scan.png"   -compose multiply -composite \
+                            "$TMP/grille.png" -compose multiply -composite \
+    "$TMP/lined.png"
+
+  # Bow the picture. Barrel's coefficients run r_src = (a.r^3 + b.r^2 + c.r + d).r
+  # over the normalised radius, so a negative cubic term with d nudged past 1
+  # magnifies the centre and drags the corners off the edge of the glass.
+  magick "$TMP/lined.png" -virtual-pixel black \
+    -distort Barrel '0.0 0.0 -0.045 1.02' "$TMP/bowed.png"
+
+  # The glass: rounded corners, feathered, plus a soft edge falloff.
+  magick -size "${W}x${H}" xc:black -fill white \
+    -draw "roundrectangle 6,6 $((W-7)),$((H-7)) 90,90" \
+    -blur 0x6 "$TMP/glass.png"
+
+  magick -size "${W}x${H}" radial-gradient:'gray(100%)-gray(34%)' \
+    -resize "${W}x${H}!" "$TMP/vig.png"
+
+  magick "$TMP/bowed.png" \
+    "$TMP/vig.png"   -compose multiply -composite \
+    "$TMP/glass.png" -compose multiply -composite \
+    -brightness-contrast 2x10 \
+    -sampling-factor 4:2:0 -quality 88 "$2"
+}
+
+# Draw a block of monospace text at a given intensity, centred, on black.
+screentext() { # $1 = text file  $2 = colour  $3 = pointsize  $4 = out
+  magick -background black -fill "$2" -font "$FONT" -pointsize "$3" \
+    -interline-spacing 8 label:@"$1" \
+    -bordercolor black -border 60 \
+    -background black -gravity center -extent "${W}x${H}" "$4"
+}
+
+echo "1-burn-in"
+# The session that has been on the screen since some time in the eighties, and
+# underneath it, dimmer and slightly off-register, the session before that.
+cat > "$TMP/now.txt" <<'TXT'
+CATHODE TERMINAL SYSTEM        REV 2.3
+--------------------------------------------------
+UPTIME  14y 221d 06:41:09
+LOAD    0.00  0.00  0.00
+USERS   1  (console)
+
+last login: never logged out
+
+$ tail -f /var/log/messages
+  ... nothing has happened in a while
+  ... nothing has happened in a while
+  ... nothing has happened in a while
+
+$ _
+TXT
+cat > "$TMP/ghost.txt" <<'TXT'
+CATHODE TERMINAL SYSTEM        REV 2.1
+--------------------------------------------------
+READY.
+
+LOAD "*",8,1
+SEARCHING FOR *
+TXT
+screentext "$TMP/now.txt"   "$AMBER" 46 "$TMP/now.png"
+screentext "$TMP/ghost.txt" "$DIM"   46 "$TMP/ghost.png"
+# The ghost is what the phosphor kept: blurred, offset, and permanent.
+magick "$TMP/ghost.png" -blur 0x2 -roll +14+9 -evaluate multiply 0.42 "$TMP/ghost2.png"
+magick "$TMP/now.png" "$TMP/ghost2.png" -compose screen -composite "$TMP/a.png"
+tube "$TMP/a.png" "$OUT/1-burn-in.jpg"
+
+echo "2-monoscope"
+# The test card a station left up overnight: crosshair, circles, a grid to
+# check geometry against, and wedges to check resolution against.
+CX=$((W/2)); CY=$((H/2)); R=$((H*44/100))
+{
+  echo "fill none stroke ${AMBER} stroke-width 3"
+  for f in 100 78 56 34 14; do
+    echo "circle ${CX},${CY} ${CX},$((CY - R*f/100))"
+  done
+  echo "stroke-width 2"
+  for x in $(seq 0 12); do
+    px=$(( W*x/12 )); echo "line ${px},0 ${px},${H}"
+  done
+  for y in $(seq 0 7); do
+    py=$(( H*y/7 )); echo "line 0,${py} ${W},${py}"
+  done
+  echo "stroke ${HOT} stroke-width 4"
+  echo "line ${CX},0 ${CX},${H}"
+  echo "line 0,${CY} ${W},${CY}"
+  echo "fill ${AMBER} stroke none"
+  echo "circle ${CX},${CY} ${CX},$((CY - 10))"
+} > "$TMP/mono.mvg"
+magick -size "${W}x${H}" xc:black -draw @"$TMP/mono.mvg" "$TMP/grid.png"
+# A greyscale step wedge along the bottom, in the only colour available.
+magick -size "90x$((W*7/10))" gradient:"${HOT}-black" \
+  -posterize 10 -rotate 90 "$TMP/wedge.png"
+magick "$TMP/grid.png" "$TMP/wedge.png" -gravity south -geometry +0+120 -composite \
+  -font "$FONT" -pointsize 46 -fill "$HOT" -gravity north \
+  -annotate +0+$((H/5)) 'CATHODE  TEST  PATTERN' "$TMP/a.png"
+tube "$TMP/a.png" "$OUT/2-monoscope.jpg"
+
+echo "3-no-signal"
+# Snow. Generated at half resolution and scaled up, because full-resolution
+# random noise is both wrong-looking and a two-megabyte JPEG.
+magick -size "$((W/2))x$((H/2))" xc: +noise Random -colorspace Gray \
+  -blur 0x0.6 -auto-level -resize "${W}x${H}!" \
+  -fill "$AMBER" -tint 100 -evaluate multiply 0.28 "$TMP/snow.png"
+# Horizontal tearing: three bands of the snow cut out, shoved sideways, and
+# dropped back where they came from. The sync is not holding.
+cp "$TMP/snow.png" "$TMP/snow2.png"
+tear() { # $1 = top edge  $2 = band height  $3 = shift
+  magick "$TMP/snow2.png" \
+    \( +clone -crop "${W}x${2}+0+${1}" +repage -roll "+${3}+0" -evaluate multiply 1.5 \) \
+    -geometry "+0+${1}" -compose over -composite "$TMP/snow3.png"
+  mv "$TMP/snow3.png" "$TMP/snow2.png"
+}
+tear $((H*22/100)) 46 260
+tear $((H*54/100)) 28 -420
+tear $((H*79/100)) 62 130
+magick "$TMP/snow2.png" \
+  -font "$FONT" -pointsize 72 -fill black -undercolor "$AMBER" -gravity center \
+  -annotate +0+0 '  NO SIGNAL  ' "$TMP/a.png"
+tube "$TMP/a.png" "$OUT/3-no-signal.jpg"
+
+echo "4-degauss"
+# The half second after the button: rings walking out from the middle while the
+# shadow mask lets go of whatever the earth's field had done to it.
+magick -size "$((W*2))x$((W*2))" radial-gradient:white-black -colorspace Gray \
+  -function Sinusoid 11,0 -blur 0x3 -swirl 90 \
+  -gravity center -crop "${W}x${H}+0+0" +repage \
+  -auto-level -evaluate multiply 0.42 "$TMP/rings.png"
+# The field only ever settled in the middle of the screen.
+magick "$TMP/rings.png" \
+  \( -size "${W}x${H}" radial-gradient:'gray(100%)-gray(12%)' \) \
+  -compose multiply -composite "$TMP/rings2.png"
+mv "$TMP/rings2.png" "$TMP/rings.png"
+# Ring the deflection: each channel lands in a slightly different place, which
+# is the one moment an amber tube gets to show a colour it does not have.
+magick "$TMP/rings.png" -fill "$AMBER" -tint 100 \
+  -channel R -evaluate multiply 1.15 \
+  -channel B -evaluate multiply 1.45 +channel \
+  -blur 0x2 "$TMP/a.png"
+tube "$TMP/a.png" "$OUT/4-degauss.jpg"
+
+echo "5-memory-check"
+# Power-on self test, stuck partway through, forever.
+{
+  echo "CATHODE BIOS  v2.31   (C) NO ONE"
+  echo ""
+  printf 'TESTING MEMORY  %s KB OK\n' 640
+  echo ""
+  for i in $(seq 0 15); do
+    printf '%08X  ' $(( i * 4096 ))
+    for j in $(seq 0 7); do printf '%04X ' $(( (i*7919 + j*104729) % 65536 )); done
+    printf ' OK\n'
+  done
+  echo ""
+  echo "DETECTING DRIVES ......... 1 FOUND"
+  echo "DETECTING KEYBOARD ....... PRESENT"
+  # The cursor, parked at the end of the last line it ever managed.
+  printf 'DETECTING OPERATOR ....... \u2588\n'
+} > "$TMP/post.txt"
+screentext "$TMP/post.txt" "$AMBER" 34 "$TMP/a.png"
+tube "$TMP/a.png" "$OUT/5-memory-check.jpg"
+
+echo "wrote 5 backgrounds to $OUT"
+ls -l "$OUT" | awk 'NR>1 { printf "  %-24s %6.2f MB\n", $9, $5/1048576 }'

@@ -1,0 +1,49 @@
+# Cathode - one phosphor, eight beam currents.
+#
+# An amber CRT has a single phosphor layer and a single electron gun. It cannot
+# produce a hue; it can only produce more or less of the one colour it has. So
+# every ANSI slot below sits on the same amber line and differs only in how hard
+# the gun is driven -- with exactly one exception, noted where it happens.
+mode = "dark"
+
+accent = "#ffb000"
+selection = "#5a3a00"
+muted = "#8a5c00"
+
+# Not black. A tube that is powered on is never black; the phosphor idles warm.
+background = "#0a0803"
+dark_background = "#060400"
+darker_background = "#030200"
+lighter_background = "#1c1408"
+
+# P3 amber, the actual phosphor. Everything else is this, turned down.
+foreground = "#ffb000"
+# Comments sit on the 4.5:1 floor and no dimmer.
+dark_foreground = "#a87000"
+light_foreground = "#ffc94d"
+bright_foreground = "#fff1c9"
+
+# red is the one slot allowed off the amber line. A monochrome tube has no way
+# to signal by hue, so this theme cheats: red is pushed to the red edge of what
+# the phosphor can reach, and it is the only thing on the screen that is not
+# amber. You notice it because it is different, not because it is brighter.
+red = "#ff4d14"
+orange = "#ff9200"
+yellow = "#ffb000"
+green = "#d19100"
+cyan = "#b98100"
+blue = "#a06e00"
+magenta = "#e8a52a"
+brown = "#b07a00"
+
+# Bright variants: same phosphor, more current, so they run toward white.
+bright_red = "#ff7a45"
+bright_yellow = "#ffd166"
+bright_green = "#edb43d"
+bright_cyan = "#dda942"
+bright_blue = "#c8993a"
+bright_magenta = "#ffc266"
+
+# The focused window glows like the middle of the tube; the rest is bezel.
+hyprland_active_border = "rgba(ffb000ff) rgba(ff7a00ff) rgba(ffd166ff) rgba(ffb000ff) 90deg"
+hyprland_inactive_border = "rgba(3a2800cc) rgba(1c1408cc) 90deg"
