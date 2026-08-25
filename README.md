@@ -148,8 +148,11 @@ other sections at their defaults.
 ## so I don't forget when I have more tokens!!!
 ```
 calvin & hobbes
+
 the far side
+
 annoying (randomly timed subtle looknfeel changes to unnerve you, no loudness just erk)
+
 not a theme but - ritzpah-roulette!! a shell script that mish-moshes every theme in the
   repo together in a completely and profoundly perplexed way: colors.toml from one theme,
   hyprland.lua from another, a wallpaper from a third, icons.theme from a fourth, shell
@@ -157,19 +160,14 @@ not a theme but - ritzpah-roulette!! a shell script that mish-moshes every theme
   omarchy cannot tell it was assembled by a coin. --seed N to reproduce a disaster you
   liked, --dry-run to see what it was about to do to you. only escape is
   `omarchy theme set "Acid Vortex"`
+
 your computer is a website!!! famous website based themes
 
-material 3 for omarchy - the serious one. not a palette, the whole design system.
-  m3 says elevation is a surface TONE not a shadow (surface-container-lowest through
-  highest), shape is a scale (4/8/12/16/28, not one rounding value), motion has named
-  emphasized and standard easings, and color comes as ~26 semantic roles - primary,
-  on-primary, primary-container, outline, outline-variant - each pulled from a 13-tone
-  tonal palette. the hard part is the squeeze: omarchy's colors.toml is basically ansi
-  16 plus a handful of slots, so most of the work is deciding which roles survive that
-  mapping and which get faked in hyprland.lua and the shell.<section>.toml files.
-  material you (extract the tonal palettes from the current wallpaper, matugen already
-  does that part) is one feature of this, not the point of it - do the static system
-  first, then let the wallpaper drive the source color.
+we need to make this a proper layer above the normal omarchy theme layer, so it can become an official plugin, ritzpah shall have it's "shim" to make it feel seamless and intergrated whil not being invasive
+
+we need to restructre the github repo so the roster can be browsed properly (github pages deployment? netlify drop?)
+
+add a dash cmd for claude helping users make a theme in one prompt
 ```
 
 
