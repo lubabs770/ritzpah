@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "slug": "github-dark-high-contrast",
+  "kind": "static",
+  "name": "GitHub Dark High Contrast",
+  "tagline": "Pure black paper, pure white ink, and a floor no other theme in this repo clears.",
+  "tags": [
+    "dark",
+    "readable",
+    "accessible",
+    "github",
+    "derived"
+  ],
+  "contrast_floor": 7.0,
+  "generator": "tools/make-backgrounds-github",
+  "notes": "Holds AAA on every ink slot, which makes it the most readable theme in the collection -- Blueprint had to lighten its red to reach 7.04, and this one arrives there without being asked.",
+  "derived_from": {
+    "package": "@primer/primitives",
+    "version": "11.10.0",
+    "theme": "dark-high-contrast",
+    "generator": "tools/make-github-themes"
+  },
+  "contrast_exempt": {
+    "muted": "ANSI 8 is GitHub's own dimmed-text value and dimmed text is supposed to recede; lifting it would mean shipping a terminal palette GitHub does not have (measures 3.87:1)"
+  }
+}

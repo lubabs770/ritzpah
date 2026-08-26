@@ -1,0 +1,8 @@
+# --overlay-bgColor. GitHub floats its overlays on the darkest surface it has
+# rather than on the page colour, so a popup is legible over anything.
+[popups]
+background       = "#010409"
+background-alpha = 1.0
+text             = "#ffffff"
+border           = "#b7bdc8"
+border-alpha     = 1.0

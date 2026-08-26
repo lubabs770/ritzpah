@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "slug": "github-dark",
+  "kind": "static",
+  "name": "GitHub Dark",
+  "tagline": "GitHub's default dark mode, taken off the design tokens and pressed onto the whole desktop.",
+  "tags": [
+    "dark",
+    "readable",
+    "github",
+    "derived"
+  ],
+  "contrast_floor": 4.5,
+  "generator": "tools/make-backgrounds-github",
+  "notes": "The reference variant. Every other GitHub theme here is a diff against this one.",
+  "derived_from": {
+    "package": "@primer/primitives",
+    "version": "11.10.0",
+    "theme": "dark",
+    "generator": "tools/make-github-themes"
+  },
+  "contrast_exempt": {
+    "muted": "ANSI 8 is GitHub's own dimmed-text value and dimmed text is supposed to recede; lifting it would mean shipping a terminal palette GitHub does not have (measures 3.57:1)"
+  }
+}

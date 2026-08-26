@@ -1,0 +1,286 @@
+#!/usr/bin/env python3
+"""Preview cards for the five GitHub dark themes.
+
+Rendered with ImageMagick rather than screencaptured, per the house rule, and
+-- the part that matters -- every number printed on the card is measured here
+at render time. A preview in this repo once asserted "16 slots" against a
+20-slot palette because a human typed the 16. Nothing on these cards is typed.
+
+Usage:
+    tools/make-preview-github                 # all five
+    tools/make-preview-github github-dark
+"""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import primer  # noqa: E402
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO, "tools"))
+
+WIDTH, HEIGHT = 1800, 1012
+MONO = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
+MONO_BOLD = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Bold.ttf"
+
+THEMES = {
+    "github-dark": "dark",
+    "github-dark-dimmed": "dark-dimmed",
+    "github-dark-high-contrast": "dark-high-contrast",
+    "github-dark-colorblind": "dark-colorblind",
+    "github-dark-tritanopia": "dark-tritanopia",
+}
+
+# The slots the card lists, in the order it lists them. Terminal-palette slots
+# only: this pane is showing you what your shell will look like.
+SHOWN = ["red", "green", "yellow", "blue", "magenta", "cyan",
+         "orange", "brown", "accent", "dark_foreground", "muted"]
+
+
+def read_palette(slug):
+    """Parse the generated colors.toml back out. No second source of truth."""
+    colours = {}
+    path = os.path.join(REPO, "themes", slug, "colors.toml")
+    # Matched rather than split on "#": the values are hexes, and splitting a
+    # line on the comment character eats the colour along with the comment.
+    assign = re.compile(r'^\s*([a-z_]+)\s*=\s*"(#[0-9a-fA-F]{6})"')
+    for line in open(path):
+        hit = assign.match(line)
+        if hit:
+            colours[hit.group(1)] = hit.group(2)
+    return colours
+
+
+class Card:
+    def __init__(self, background):
+        self.ops = []
+        self.background = background
+
+    def rect(self, x, y, w, h, colour, alpha=1.0, radius=0):
+        self.ops += ["push graphic-context", "stroke none", f"fill '{colour}'",
+                     f"fill-opacity {alpha:.3f}"]
+        if radius:
+            self.ops.append(f"roundrectangle {x:.1f},{y:.1f} {x + w:.1f},"
+                            f"{y + h:.1f} {radius},{radius}")
+        else:
+            self.ops.append(f"rectangle {x:.1f},{y:.1f} {x + w:.1f},{y + h:.1f}")
+        self.ops.append("pop graphic-context")
+
+    def outline(self, x, y, w, h, colour, alpha=1.0, radius=0, width=2):
+        self.ops += ["push graphic-context", "fill none", f"stroke '{colour}'",
+                     f"stroke-opacity {alpha:.3f}", f"stroke-width {width}"]
+        if radius:
+            self.ops.append(f"roundrectangle {x:.1f},{y:.1f} {x + w:.1f},"
+                            f"{y + h:.1f} {radius},{radius}")
+        else:
+            self.ops.append(f"rectangle {x:.1f},{y:.1f} {x + w:.1f},{y + h:.1f}")
+        self.ops.append("pop graphic-context")
+
+
+def escape(text):
+    return text.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("themes", nargs="*")
+    args = parser.parse_args()
+    slugs = args.themes or list(THEMES)
+
+    primitives = primer.load()
+
+    for slug in slugs:
+        tokens = primitives[THEMES[slug]]
+        colours = read_palette(slug)
+        meta = json.load(open(os.path.join(REPO, "themes", slug, "theme.json")))
+        floor = meta["contrast_floor"]
+        exempt = meta.get("contrast_exempt", {})
+
+        background = colours["background"]
+        canvas_rgba = primer.parse_hex(background)
+        header, header_alpha = primer.split_alpha(tokens, "--header-bgColor")
+        inset = primer.solid(tokens, "--bgColor-inset")
+        muted_bg = primer.solid(tokens, "--bgColor-muted")
+        border = primer.solid(tokens, "--borderColor-default")
+        accent_border = primer.solid(tokens, "--borderColor-accent-emphasis")
+        underline = primer.solid(tokens, "--underlineNav-borderColor-active")
+        fg = colours["foreground"]
+        fg_muted = colours["dark_foreground"]
+        accent = colours["accent"]
+        success = primer.solid(tokens, "--fgColor-success")
+        danger = primer.solid(tokens, "--fgColor-danger")
+
+        card = Card(background)
+        bar_height = 56
+
+        # --- the global header ------------------------------------------
+        card.rect(0, 0, WIDTH, bar_height, header, header_alpha)
+        card.rect(0, bar_height - 1, WIDTH, 1, border, 1.0)
+
+        # --- the terminal window ----------------------------------------
+        term_x, term_y = 60, bar_height + 60
+        term_w, term_h = 1080, 760
+        card.rect(term_x, term_y, term_w, term_h, background, 1.0, 6)
+        card.outline(term_x, term_y, term_w, term_h, accent_border, 1.0, 6, 2)
+        card.rect(term_x, term_y, term_w, 40, muted_bg, 1.0, 6)
+        card.rect(term_x, term_y + 38, term_w, 2, underline, 1.0)
+
+        # --- the side panel ---------------------------------------------
+        side_x = term_x + term_w + 40
+        side_w = WIDTH - side_x - 60
+        card.rect(side_x, term_y, side_w, term_h, inset, 1.0, 6)
+        card.outline(side_x, term_y, side_w, term_h, border, 1.0, 6, 2)
+
+        handle, mvg = tempfile.mkstemp(suffix=".mvg")
+        with os.fdopen(handle, "w") as out:
+            out.write("\n".join(card.ops))
+
+        command = ["magick", "-size", f"{WIDTH}x{HEIGHT}", f"xc:{background}",
+                   "-draw", f"@{mvg}"]
+
+        def text(x, y, body, colour, size=22, bold=False):
+            command.extend([
+                "-font", MONO_BOLD if bold else MONO,
+                "-pointsize", str(size),
+                "-fill", colour,
+                "-annotate", f"+{x}+{y}", body])
+
+        # Header row: the theme name, then a live readout on the right.
+        text(28, 37, meta["name"], fg, 24, True)
+        text(420, 37, f"@primer/primitives@{primer.VERSION}", fg_muted, 20)
+        clears = sum(1 for slot in SHOWN if slot not in exempt)
+        text(WIDTH - 470, 37,
+             f"floor {floor}  |  {len(exempt)} exempt  |  mode dark",
+             accent, 20)
+
+        # Terminal tab strip.
+        text(term_x + 20, term_y + 27, "colors.toml", fg, 20, True)
+        text(term_x + 220, term_y + 27, f" {slug}", fg_muted, 20)
+
+        line = term_y + 84
+        step = 34
+
+        def term(body, colour, bold=False, indent=0):
+            nonlocal line
+            text(term_x + 28 + indent, line, body, colour, 22, bold)
+            line += step
+
+        term("$ ./ritzpah contrast " + slug, fg, True)
+        line += 6
+        term(f"{'slot':<17}{'hex':<11}{'ratio':>7}   {'':<6}", fg_muted)
+        for slot in SHOWN:
+            ratio = primer.contrast(primer.parse_hex(colours[slot]), canvas_rgba)
+            ok = slot not in exempt
+            verdict = "PASS" if ok else "EXEMPT"
+            term(f"{slot:<17}{colours[slot]:<11}{ratio:>6.2f}:1   {verdict}",
+                 colours[slot] if ok else fg_muted)
+        line += 8
+
+        worst_slot = min(
+            (s for s in colours if s in SHOWN or s in
+             ("foreground", "light_foreground", "bright_foreground")),
+            key=lambda s: primer.contrast(primer.parse_hex(colours[s]),
+                                          canvas_rgba))
+        worst = primer.contrast(primer.parse_hex(colours[worst_slot]), canvas_rgba)
+        term(f"{clears} of {len(SHOWN)} listed slots at or above {floor}:1.",
+             success if not exempt else fg)
+        term(f"lowest listed: {worst_slot} at {worst:.2f}:1"
+             + ("  (declared)" if worst_slot in exempt else ""),
+             fg_muted)
+        line += 14
+        term("$ ", fg, True)
+        card_cursor = line - step
+
+        # Side panel: the mapping, which is the actual argument of the theme.
+        # One row per slot, nothing wrapped -- an overlapping label is how the
+        # first cut of this card managed to be unreadable and wrong at once.
+        sy = term_y + 56
+        text(side_x + 26, sy, "EVERY SLOT IS A TOKEN", accent, 21, True)
+        sy = term_y + 100
+        for label, token in [
+            ("background", "--bgColor-default"),
+            ("dark_background", "--bgColor-inset"),
+            ("lighter_background", "--bgColor-muted"),
+            ("selection", "--codeMirror-selection-bgColor"),
+            ("foreground", "--fgColor-default"),
+            ("dark_foreground", "--fgColor-muted"),
+            ("accent", "--fgColor-accent"),
+            ("muted", "--ansi-blackBright"),
+            ("red .. cyan", "--ansi-*"),
+            ("orange", "--codeMirror-syntax-fgColor-variable"),
+            ("brown", "--fgColor-severe"),
+            ("borders", "--borderColor-accent-emphasis"),
+        ]:
+            text(side_x + 26, sy, label, fg, 17)
+            text(side_x + 232, sy, token, accent, 14)
+            sy += 36
+
+        sy = term_y + 524
+        text(side_x + 26, sy, "no hex on this card was typed by hand;", fg_muted, 17)
+        text(side_x + 26, sy + 26, "every ratio was measured at render time.",
+             fg_muted, 17)
+
+        # Swatch strip, bottom of the panel.
+        swatch_y = term_y + 600
+        text(side_x + 26, swatch_y - 16, "palette", fg_muted, 17)
+        per_row = 8
+        size = (side_w - 52 - (per_row - 1) * 8) / per_row
+        order = ["red", "green", "yellow", "blue", "magenta", "cyan",
+                 "orange", "brown", "bright_red", "bright_green",
+                 "bright_yellow", "bright_blue", "bright_magenta",
+                 "bright_cyan", "accent", "muted"]
+        strip = Card(background)
+        for index, slot in enumerate(order):
+            row, column = divmod(index, per_row)
+            strip.rect(side_x + 26 + column * (size + 8),
+                       swatch_y + row * (size + 8), size, size,
+                       colours[slot], 1.0, 4)
+        # The cursor block at the shell prompt, drawn rather than typed.
+        strip.rect(term_x + 28 + 26, card_cursor - 17, 12, 22, fg, 0.85)
+        handle2, mvg2 = tempfile.mkstemp(suffix=".mvg")
+        with os.fdopen(handle2, "w") as out:
+            out.write("\n".join(strip.ops))
+        command.extend(["-draw", f"@{mvg2}"])
+
+        # The strip along the bottom is this theme's own contribution-graph
+        # wallpaper, cropped through its middle. A preview that shows the
+        # palette but none of the wallpapers is only telling you half of what
+        # you are about to install.
+        band_height = HEIGHT - (term_y + term_h) - 24
+        band_y = term_y + term_h + 24
+        wallpaper = os.path.join(REPO, "themes", slug, "backgrounds",
+                                 "1-contributions.png")
+        if os.path.exists(wallpaper) and band_height > 0:
+            # -gravity is a setting, not an operator: set inside the parens it
+            # would still be in force for the -composite placement and for the
+            # -draw below, moving both. Centre the crop by measuring instead.
+            size = subprocess.run(
+                ["magick", "identify", "-format", "%w %h", wallpaper],
+                check=True, capture_output=True, text=True).stdout.split()
+            scaled_height = round(int(size[1]) * WIDTH / int(size[0]))
+            crop_y = max(0, (scaled_height - band_height) // 2)
+            command.extend([
+                "(", wallpaper, "-resize", f"{WIDTH}x",
+                "-crop", f"{WIDTH}x{band_height}+0+{crop_y}", "+repage", ")",
+                "-geometry", f"+0+{band_y}", "-composite",
+                "-fill", border, "-stroke", "none",
+                "-draw", f"rectangle 0,{band_y - 2} {WIDTH},{band_y}"])
+
+        destination = os.path.join(REPO, "themes", slug, "preview.png")
+        command.extend(["-depth", "8", "-define", "png:compression-level=9",
+                        destination])
+        subprocess.run(command, check=True)
+        os.unlink(mvg)
+        os.unlink(mvg2)
+        print(f"{slug}/preview.png  "
+              f"{os.path.getsize(destination) / 1e6:.2f} MB")
+
+
+if __name__ == "__main__":
+    main()

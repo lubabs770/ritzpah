@@ -1,0 +1,15 @@
+# A password prompt raised by something else asking for your permission.
+# The resting border is --borderColor-attention-emphasis rather than the
+# accent one: GitHub reserves that colour for "read this before you agree",
+# which is the whole job of this dialog.
+[polkit]
+background       = "#2a313c"
+background-alpha = 1.0
+text             = "#d1d7e0"
+text-error       = "#e5534b"
+border           = "#966600"
+border-error     = "#c93c37"
+border-alpha     = 1.0
+scrim            = "#262c36"
+scrim-alpha      = 0.4
+accent           = "#478be6"

@@ -44,7 +44,11 @@ themes/<name>/                        one theme, in Omarchy's own layout
 themes/<name>/theme.json              name, tagline, tags, contrast floor
 tools/ritzpah-lib.py                  data half of the CLI (TOML, JSON, contrast maths)
 tools/ritzpah-site.py                 builds the static site published to Pages
+tools/primer.py                       fetches and resolves @primer/primitives design tokens
+tools/make-github-themes              derives the five GitHub themes from those tokens
 tools/make-backgrounds*               one wallpaper generator per theme
+tools/make-preview-github             renders the GitHub themes' preview cards
+tools/make-docs-github                palette strips and contact sheets for the GitHub themes
 docs/                                 palette strips and wallpaper contact sheets
 .github/workflows/pages.yml           validates every theme, then publishes the site
 ```
@@ -181,6 +185,7 @@ ritzpah-roulette: deal colors.toml, hyprland.lua, a wallpaper, icons.theme and
   theme called Roulette. --seed N reproduces a disaster you liked, --dry-run
   shows what it was about to do to you.
 your computer is a website!!! famous website based themes
+  -- started: the five GitHub dark themes, derived from @primer/primitives
 themes dynamically built in real time from ridiculous variables — sports scores,
   the weather. The variable drives hue and chroma, never the luminance the
   contrast floor depends on.

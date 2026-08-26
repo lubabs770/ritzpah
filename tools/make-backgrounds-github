@@ -1,0 +1,595 @@
+#!/usr/bin/env python3
+"""Wallpapers for the five GitHub dark themes: GitHub's own surfaces, at wall scale.
+
+Every other generator in this repo invents a texture. This one does not invent
+anything -- it draws the interface. A contribution graph, a diff, a checks
+list, a file tree over a blob, and a field of octicons, each one painted in the
+tokens of the variant it belongs to, so the Colorblind wallpaper really does
+have a blue contribution graph and the Dimmed one really is washed out.
+
+None of the colours here are chosen. They are resolved from
+@primer/primitives at the pinned version in tools/primer.py, which is the same
+package and the same version the palettes come from, so a wallpaper and the
+theme it sits under cannot drift apart.
+
+The octicons are the real ones, fetched from @primer/octicons (MIT, GitHub
+Inc.) and drawn as MVG paths rather than rendered as SVG -- which means they
+can be recoloured per variant instead of arriving in whatever colour they
+shipped in.
+
+Usage:
+    tools/make-backgrounds-github                  # all five themes
+    tools/make-backgrounds-github github-dark      # just one
+    tools/make-backgrounds-github --size 3840x2160
+"""
+
+import argparse
+import io
+import os
+import random
+import re
+import subprocess
+import sys
+import tarfile
+import tempfile
+import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import primer  # noqa: E402
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Pinned for the same reason the primitives are.
+OCTICONS_VERSION = "19.33.0"
+OCTICONS_TARBALL = (f"https://registry.npmjs.org/@primer/octicons/-/"
+                    f"octicons-{OCTICONS_VERSION}.tgz")
+_OCTICON_CACHE = os.path.join(tempfile.gettempdir(),
+                              f"ritzpah-octicons-{OCTICONS_VERSION}")
+
+# slug -> the Primer functional theme it is built from.
+THEMES = {
+    "github-dark": "dark",
+    "github-dark-dimmed": "dark-dimmed",
+    "github-dark-high-contrast": "dark-high-contrast",
+    "github-dark-colorblind": "dark-colorblind",
+    "github-dark-tritanopia": "dark-tritanopia",
+}
+
+# The contribution graph's colour scheme, per theme, and the one place in this
+# whole build where a choice was made rather than a token looked up.
+#
+# Primer publishes `--contribution-default-bgColor-*` identically for dark,
+# dark-colorblind and dark-tritanopia -- all three green. GitHub does swap the
+# calendar for its accessibility modes, but it does that in the application,
+# not in the token set, so there is nothing here to read.
+#
+# Leaving it green would mean the Colorblind theme shipping a wallpaper made
+# of exactly the colour that theme exists to stop relying on. So the two
+# accessibility variants use `winter` instead, which is a scheme Primer does
+# publish, and whose level 3 is #58a6ff -- the very blue those themes
+# substitute for ANSI green. The wallpaper and the terminal palette end up
+# agreeing, and no hex was invented to get there.
+#
+# `winter` has no level 0; the empty square stays --contribution-default-
+# bgColor-0 in every scheme.
+CONTRIBUTION_SCHEME = {
+    "github-dark": "default",
+    "github-dark-dimmed": "default",
+    "github-dark-high-contrast": "default",
+    "github-dark-colorblind": "winter",
+    "github-dark-tritanopia": "winter",
+}
+
+WANTED_OCTICONS = [
+    "check-circle-16", "x-circle-16", "dot-fill-16", "clock-16",
+    "skip-16", "git-pull-request-16", "git-branch-16", "git-commit-16",
+    "issue-opened-16", "repo-16", "file-16", "file-directory-fill-16",
+    "mark-github-16", "star-16", "git-merge-16", "eye-16", "code-16",
+    "comment-discussion-16", "tag-16", "rocket-16",
+]
+
+
+# --- octicons ---------------------------------------------------------------
+
+def load_octicons():
+    """Fetch the pinned octicon set and return {name: [path data, ...]}."""
+    if not os.path.isdir(_OCTICON_CACHE):
+        print(f"fetching @primer/octicons@{OCTICONS_VERSION}")
+        with urllib.request.urlopen(OCTICONS_TARBALL, timeout=60) as response:
+            blob = response.read()
+        os.makedirs(_OCTICON_CACHE, exist_ok=True)
+        with tarfile.open(fileobj=io.BytesIO(blob), mode="r:gz") as tar:
+            for member in tar.getmembers():
+                match = re.fullmatch(r"package/build/svg/(.+)\.svg", member.name)
+                if not match:
+                    continue
+                target = os.path.join(_OCTICON_CACHE, match.group(1) + ".svg")
+                with open(target, "wb") as handle:
+                    handle.write(tar.extractfile(member).read())
+
+    icons = {}
+    for name in WANTED_OCTICONS:
+        path = os.path.join(_OCTICON_CACHE, name + ".svg")
+        if not os.path.exists(path):
+            raise SystemExit(f"octicon {name} not in the package")
+        body = open(path).read()
+        size = int(re.search(r'viewBox="0 0 (\d+)', body).group(1))
+        icons[name] = (size, re.findall(r'<path[^>]*\sd="([^"]+)"', body))
+    return icons
+
+
+# --- MVG helpers ------------------------------------------------------------
+#
+# Everything is drawn as rectangles, rounded rectangles and paths. Deliberately
+# no `polyline`: on ImageMagick 7.1.2-29 an inlined `stroke-linecap round`
+# before a polyline on the same line breaks the parser, and this repo has
+# already lost an afternoon to that once.
+
+class Canvas:
+    def __init__(self, width, height, background):
+        self.width = width
+        self.height = height
+        self.background = background
+        self.ops = []
+
+    def rect(self, x, y, w, h, colour, alpha=1.0, radius=0):
+        if w <= 0 or h <= 0:
+            return
+        self.ops.append("push graphic-context")
+        self.ops.append("stroke none")
+        self.ops.append(f"fill '{colour}'")
+        self.ops.append(f"fill-opacity {alpha:.3f}")
+        if radius:
+            self.ops.append(
+                f"roundrectangle {x:.1f},{y:.1f} {x + w:.1f},{y + h:.1f} "
+                f"{radius:.1f},{radius:.1f}")
+        else:
+            self.ops.append(f"rectangle {x:.1f},{y:.1f} {x + w:.1f},{y + h:.1f}")
+        self.ops.append("pop graphic-context")
+
+    def outline(self, x, y, w, h, colour, alpha=1.0, radius=0, width=2):
+        self.ops.append("push graphic-context")
+        self.ops.append("fill none")
+        self.ops.append(f"stroke '{colour}'")
+        self.ops.append(f"stroke-opacity {alpha:.3f}")
+        self.ops.append(f"stroke-width {width}")
+        if radius:
+            self.ops.append(
+                f"roundrectangle {x:.1f},{y:.1f} {x + w:.1f},{y + h:.1f} "
+                f"{radius:.1f},{radius:.1f}")
+        else:
+            self.ops.append(f"rectangle {x:.1f},{y:.1f} {x + w:.1f},{y + h:.1f}")
+        self.ops.append("pop graphic-context")
+
+    def icon(self, icons, name, x, y, size, colour, alpha=1.0):
+        box, paths = icons[name]
+        scale = size / box
+        self.ops.append("push graphic-context")
+        self.ops.append("stroke none")
+        self.ops.append(f"fill '{colour}'")
+        self.ops.append(f"fill-opacity {alpha:.3f}")
+        self.ops.append(f"translate {x:.1f},{y:.1f}")
+        self.ops.append(f"scale {scale:.4f},{scale:.4f}")
+        for data in paths:
+            self.ops.append(f'path "{data}"')
+        self.ops.append("pop graphic-context")
+
+    def write(self, destination):
+        handle, mvg = tempfile.mkstemp(suffix=".mvg")
+        with os.fdopen(handle, "w") as out:
+            out.write("\n".join(self.ops))
+        try:
+            subprocess.run(
+                ["magick", "-size", f"{self.width}x{self.height}",
+                 f"xc:{self.background}", "-draw", f"@{mvg}",
+                 "-depth", "8", "-define", "png:compression-level=9",
+                 destination],
+                check=True)
+        finally:
+            os.unlink(mvg)
+
+
+def vignette(destination, colour):
+    """Darken the edges so a bright wallpaper does not fight the bar."""
+    subprocess.run(
+        ["magick", destination,
+         "(", "+clone", "-alpha", "transparent",
+         "-fill", colour, "-draw", "color 0,0 reset",
+         ")", "-compose", "over",
+         "(", "+clone", "-alpha", "transparent", "-background", "none",
+         "-vignette", "0x0+0+0", ")",
+         "-delete", "0", "-composite",
+         destination], check=False)
+
+
+# --- the five wallpapers ----------------------------------------------------
+
+def contributions(tokens, icons, width, height, seed, scheme="default"):
+    """The 53x7 calendar, which is the single most recognisable thing GitHub draws.
+
+    The ramp is --contribution-<scheme>-bgColor-0 through -4, resolved against
+    this variant's own tokens, so Dimmed's calendar is washed out and High
+    Contrast's is nearly luminous without either being drawn differently.
+    """
+    rng = random.Random(seed)
+    canvas = Canvas(width, height, primer.solid(tokens, "--bgColor-default"))
+    ramp = [primer.solid(tokens, "--contribution-default-bgColor-0")] + [
+        primer.solid(tokens, f"--contribution-{scheme}-bgColor-{i}")
+        for i in range(1, 5)]
+    edge = primer.solid(tokens, "--contribution-default-borderColor-0")
+    muted = primer.solid(tokens, "--fgColor-muted")
+
+    columns, rows = 53, 7
+    margin = width * 0.06
+    gap = max(4, int(width * 0.0035))
+    cell = (width - 2 * margin - (columns - 1) * gap) / columns
+    grid_height = rows * cell + (rows - 1) * gap
+    top = (height - grid_height) / 2 + height * 0.02
+    radius = max(2, cell * 0.18)
+
+    for column in range(columns):
+        # Weekends are quieter, and every so often a fortnight goes dark.
+        streak = rng.random() < 0.12
+        for row in range(rows):
+            weekend = row in (0, 6)
+            roll = rng.random()
+            if streak:
+                level = 0 if roll < 0.85 else 1
+            elif weekend:
+                level = 0 if roll < 0.55 else rng.choice([1, 1, 2])
+            else:
+                level = rng.choices([0, 1, 2, 3, 4],
+                                    weights=[22, 26, 24, 18, 10])[0]
+            x = margin + column * (cell + gap)
+            y = top + row * (cell + gap)
+            canvas.rect(x, y, cell, cell, ramp[level], 1.0, radius)
+            canvas.outline(x, y, cell, cell, edge, 0.6, radius, 1)
+
+    # Month labels above, day labels down the side: dashes rather than glyphs,
+    # because a wallpaper that depends on a font is a wallpaper that renders
+    # differently on the next machine.
+    label = cell * 0.55
+    for month in range(12):
+        x = margin + (month * 53 / 12) * (cell + gap)
+        canvas.rect(x, top - cell * 1.5, label * 1.6, label * 0.34, muted, 0.45,
+                    label * 0.17)
+    for row in (1, 3, 5):
+        y = top + row * (cell + gap) + cell * 0.4
+        canvas.rect(margin - cell * 1.9, y, cell * 1.4, label * 0.34, muted,
+                    0.45, label * 0.17)
+
+    # The Less/More legend, bottom right, exactly where GitHub puts it.
+    legend_cell = cell * 0.75
+    legend_gap = gap
+    legend_width = 5 * legend_cell + 4 * legend_gap
+    lx = width - margin - legend_width
+    ly = top + grid_height + cell * 1.6
+    canvas.rect(lx - legend_cell * 2.4, ly + legend_cell * 0.33,
+                legend_cell * 1.8, legend_cell * 0.26, muted, 0.45,
+                legend_cell * 0.13)
+    for index, colour in enumerate(ramp):
+        x = lx + index * (legend_cell + legend_gap)
+        canvas.rect(x, ly, legend_cell, legend_cell, colour, 1.0,
+                    legend_cell * 0.18)
+        canvas.outline(x, ly, legend_cell, legend_cell, edge, 0.6,
+                       legend_cell * 0.18, 1)
+    canvas.rect(lx + legend_width + legend_cell * 0.6, ly + legend_cell * 0.33,
+                legend_cell * 1.8, legend_cell * 0.26, muted, 0.45,
+                legend_cell * 0.13)
+    return canvas
+
+
+def diff(tokens, icons, width, height, seed):
+    """A unified diff, full bleed, in the diffBlob tokens.
+
+    The row washes, the number-gutter tints and the word-level highlights are
+    all separate tokens in Primer, and using all three is the difference
+    between "a green stripe" and "a GitHub diff".
+    """
+    rng = random.Random(seed)
+    canvas = Canvas(width, height, primer.solid(tokens, "--bgColor-default"))
+    background = primer.parse_hex(primer.resolve(tokens, "--bgColor-default"))
+
+    add_line = primer.solid(tokens, "--diffBlob-additionLine-bgColor")
+    del_line = primer.solid(tokens, "--diffBlob-deletionLine-bgColor")
+    add_num = primer.solid(tokens, "--diffBlob-additionNum-bgColor")
+    del_num = primer.solid(tokens, "--diffBlob-deletionNum-bgColor")
+    add_word = primer.solid(tokens, "--diffBlob-additionWord-bgColor",
+                            over=primer.parse_hex(add_line))
+    del_word = primer.solid(tokens, "--diffBlob-deletionWord-bgColor",
+                            over=primer.parse_hex(del_line))
+    hunk = primer.solid(tokens, "--diffBlob-hunkLine-bgColor")
+    hunk_fg = primer.solid(tokens, "--diffBlob-hunkLine-fgColor")
+    gutter = primer.solid(tokens, "--diffBlob-emptyNum-bgColor")
+    muted = primer.solid(tokens, "--fgColor-muted")
+    border = primer.solid(tokens, "--borderColor-default")
+
+    line = height / 26.0
+    number_column = width * 0.055
+    text_left = number_column * 2 + width * 0.02
+    text_right = width * 0.94
+
+    canvas.rect(0, 0, number_column * 2, height, gutter, 1.0)
+
+    y = 0.0
+    kinds = (["hunk"] + ["ctx"] * 3 + ["del"] * 2 + ["add"] * 4 + ["ctx"] * 2 +
+             ["del"] + ["add"] * 3 + ["ctx"] * 3 + ["hunk"] + ["ctx"] * 2 +
+             ["add"] * 3 + ["ctx"] * 3)
+    while y < height:
+        kind = kinds[int(y // line) % len(kinds)]
+        if kind == "hunk":
+            canvas.rect(0, y, width, line, hunk, 1.0)
+            canvas.rect(text_left, y + line * 0.36, width * 0.16, line * 0.26,
+                        hunk_fg, 0.75, line * 0.13)
+        else:
+            if kind == "add":
+                canvas.rect(0, y, width, line, add_line, 1.0)
+                canvas.rect(0, y, number_column * 2, line, add_num, 1.0)
+            elif kind == "del":
+                canvas.rect(0, y, width, line, del_line, 1.0)
+                canvas.rect(0, y, number_column * 2, line, del_num, 1.0)
+
+            # Line numbers, as dashes.
+            for column in range(2):
+                canvas.rect(number_column * (column + 0.72), y + line * 0.4,
+                            number_column * 0.26, line * 0.22, muted, 0.55,
+                            line * 0.11)
+
+            # The code itself: indented runs of bar, with the occasional
+            # word-level highlight where the two sides of the diff differ.
+            indent = rng.choice([0, 0, 1, 1, 2, 2, 3]) * width * 0.018
+            x = text_left + indent
+            while x < text_right - width * 0.02:
+                run = rng.uniform(width * 0.012, width * 0.075)
+                run = min(run, text_right - x)
+                highlight = kind in ("add", "del") and rng.random() < 0.22
+                if highlight:
+                    colour = add_word if kind == "add" else del_word
+                    canvas.rect(x - width * 0.002, y + line * 0.22,
+                                run + width * 0.004, line * 0.56, colour, 1.0,
+                                line * 0.1)
+                canvas.rect(x, y + line * 0.36, run, line * 0.26, muted,
+                            0.5 if not highlight else 0.72, line * 0.13)
+                x += run + rng.uniform(width * 0.006, width * 0.014)
+                if rng.random() < 0.18:
+                    break
+        y += line
+
+    canvas.rect(number_column * 2 - 2, 0, 2, height, border, 1.0)
+    return canvas
+
+
+def checks(tokens, icons, width, height, seed):
+    """A pull request's checks list, floated as a card.
+
+    Status colours here are the semantic ones -- success, danger, attention,
+    muted -- rather than the ANSI palette, because this is a piece of
+    interface and GitHub uses a different set for those.
+    """
+    rng = random.Random(seed)
+    canvas = Canvas(width, height, primer.solid(tokens, "--bgColor-default"))
+    card = primer.solid(tokens, "--bgColor-muted")
+    inset = primer.solid(tokens, "--bgColor-inset")
+    border = primer.solid(tokens, "--borderColor-default")
+    muted = primer.solid(tokens, "--fgColor-muted")
+    fg = primer.solid(tokens, "--fgColor-default")
+    accent = primer.solid(tokens, "--fgColor-accent")
+    success = primer.solid(tokens, "--fgColor-success")
+    danger = primer.solid(tokens, "--fgColor-danger")
+    attention = primer.solid(tokens, "--fgColor-attention")
+
+    card_width = width * 0.62
+    card_x = (width - card_width) / 2
+    rows = 11
+    row_height = height * 0.055
+    header = row_height * 1.5
+    card_height = header + rows * row_height
+    card_y = (height - card_height) / 2
+    radius = max(6, width * 0.004)
+
+    canvas.rect(card_x, card_y, card_width, card_height, card, 1.0, radius)
+    canvas.outline(card_x, card_y, card_width, card_height, border, 1.0,
+                   radius, 2)
+
+    # Header: a merge octicon and a title bar.
+    canvas.rect(card_x, card_y, card_width, header, inset, 1.0, radius)
+    canvas.icon(icons, "git-merge-16",
+                card_x + row_height * 0.6, card_y + header * 0.28,
+                header * 0.44, accent)
+    canvas.rect(card_x + row_height * 1.5, card_y + header * 0.42,
+                card_width * 0.34, header * 0.18, fg, 0.72, header * 0.09)
+    canvas.rect(card_x + card_width - row_height * 4.2, card_y + header * 0.34,
+                row_height * 3.4, header * 0.34, success, 0.22, header * 0.17)
+    canvas.rect(card_x, card_y + header - 2, card_width, 2, border, 1.0)
+
+    statuses = (
+        [("check-circle-16", success)] * 6 +
+        [("x-circle-16", danger)] +
+        [("dot-fill-16", attention)] * 2 +
+        [("skip-16", muted)] +
+        [("check-circle-16", success)]
+    )
+    rng.shuffle(statuses)
+
+    for index in range(rows):
+        y = card_y + header + index * row_height
+        name, colour = statuses[index % len(statuses)]
+        if index:
+            canvas.rect(card_x + row_height * 0.6, y, card_width - row_height * 1.2,
+                        1, border, 0.7)
+        canvas.icon(icons, name, card_x + row_height * 0.7,
+                    y + row_height * 0.3, row_height * 0.4, colour)
+        canvas.rect(card_x + row_height * 1.6, y + row_height * 0.42,
+                    card_width * rng.uniform(0.18, 0.40), row_height * 0.16,
+                    fg, 0.6, row_height * 0.08)
+        canvas.rect(card_x + card_width * 0.62, y + row_height * 0.44,
+                    card_width * rng.uniform(0.05, 0.11), row_height * 0.13,
+                    muted, 0.5, row_height * 0.07)
+        # "Details", in link blue, right-aligned like the real thing.
+        canvas.rect(card_x + card_width - row_height * 2.6,
+                    y + row_height * 0.44, row_height * 2.0,
+                    row_height * 0.13, accent, 0.8, row_height * 0.07)
+    return canvas
+
+
+def tree(tokens, icons, width, height, seed):
+    """The file tree beside a blob, in the syntax-highlighting tokens.
+
+    prettylights is GitHub's syntax theme and it ships as tokens too, so the
+    fake code here is coloured the way real code would be: keywords red,
+    strings blue, entities purple, comments grey.
+    """
+    rng = random.Random(seed)
+    canvas = Canvas(width, height, primer.solid(tokens, "--bgColor-default"))
+    panel = primer.solid(tokens, "--bgColor-inset")
+    border = primer.solid(tokens, "--borderColor-default")
+    muted = primer.solid(tokens, "--fgColor-muted")
+    accent = primer.solid(tokens, "--fgColor-accent")
+    active_row = primer.solid(tokens, "--menu-bgColor-active")
+
+    syntax = [
+        primer.solid(tokens, "--prettylights-syntax-keyword"),
+        primer.solid(tokens, "--prettylights-syntax-string"),
+        primer.solid(tokens, "--prettylights-syntax-entity"),
+        primer.solid(tokens, "--prettylights-syntax-constant"),
+        primer.solid(tokens, "--prettylights-syntax-comment"),
+        primer.solid(tokens, "--prettylights-syntax-entityTag"),
+    ]
+    weights = [3, 4, 3, 3, 2, 2]
+
+    tree_width = width * 0.26
+    canvas.rect(0, 0, tree_width, height, panel, 1.0)
+    canvas.rect(tree_width - 2, 0, 2, height, border, 1.0)
+
+    row = height / 30.0
+    for index in range(30):
+        y = index * row
+        depth = rng.choice([0, 1, 1, 2, 2, 2, 3])
+        directory = rng.random() < 0.3
+        x = width * 0.02 + depth * width * 0.018
+        if index == 11:
+            canvas.rect(0, y, tree_width, row, active_row, 1.0)
+            canvas.rect(0, y, 3, row, accent, 1.0)
+        canvas.icon(icons, "file-directory-fill-16" if directory else "file-16",
+                    x, y + row * 0.28, row * 0.42,
+                    accent if directory else muted,
+                    1.0 if directory else 0.75)
+        canvas.rect(x + row * 0.62, y + row * 0.42,
+                    tree_width * rng.uniform(0.22, 0.55), row * 0.16,
+                    muted, 0.75, row * 0.08)
+
+    # The blob: a line-number gutter, then syntax-coloured runs.
+    gutter = tree_width + width * 0.035
+    text_left = gutter + width * 0.03
+    text_right = width * 0.96
+    for index in range(30):
+        y = index * row
+        canvas.rect(gutter, y + row * 0.42, width * 0.014, row * 0.16,
+                    muted, 0.45, row * 0.08)
+        if rng.random() < 0.10:
+            continue
+        indent = rng.choice([0, 0, 1, 1, 2, 2, 3, 4]) * width * 0.017
+        x = text_left + indent
+        comment = rng.random() < 0.12
+        while x < text_right:
+            run = min(rng.uniform(width * 0.012, width * 0.07), text_right - x)
+            colour = syntax[4] if comment else rng.choices(syntax, weights)[0]
+            canvas.rect(x, y + row * 0.4, run, row * 0.2, colour,
+                        0.85 if not comment else 0.6, row * 0.1)
+            x += run + rng.uniform(width * 0.006, width * 0.013)
+            if rng.random() < 0.2:
+                break
+    return canvas
+
+
+def octicon_field(tokens, icons, width, height, seed):
+    """Octicons, scattered. The one wallpaper here that is a pattern rather than a screen.
+
+    Real octicons, MIT, drawn as paths so they can take the variant's colours.
+    """
+    rng = random.Random(seed)
+    canvas = Canvas(width, height, primer.solid(tokens, "--bgColor-default"))
+    muted = primer.solid(tokens, "--fgColor-muted")
+    accent = primer.solid(tokens, "--fgColor-accent")
+    highlights = [
+        primer.solid(tokens, "--fgColor-success"),
+        primer.solid(tokens, "--fgColor-done"),
+        primer.solid(tokens, "--fgColor-attention"),
+        primer.solid(tokens, "--fgColor-severe"),
+    ]
+
+    names = [n for n in WANTED_OCTICONS if n != "skip-16"]
+    columns, rows = 13, 8
+    step_x, step_y = width / columns, height / rows
+    size = min(step_x, step_y) * 0.42
+
+    for row in range(rows + 1):
+        for column in range(columns + 1):
+            jitter_x = rng.uniform(-step_x * 0.18, step_x * 0.18)
+            jitter_y = rng.uniform(-step_y * 0.18, step_y * 0.18)
+            x = column * step_x + (step_x - size) / 2 + jitter_x
+            y = row * step_y + (step_y - size) / 2 + jitter_y
+            scale = size * rng.uniform(0.7, 1.25)
+            roll = rng.random()
+            if roll < 0.04:
+                colour, alpha = accent, 0.85
+            elif roll < 0.10:
+                colour, alpha = rng.choice(highlights), 0.7
+            else:
+                colour, alpha = muted, rng.uniform(0.10, 0.26)
+            canvas.icon(icons, rng.choice(names), x, y, scale, colour, alpha)
+
+    # One big mark, off-centre, in the accent.
+    mark = min(width, height) * 0.30
+    canvas.icon(icons, "mark-github-16", width * 0.72, height * 0.16, mark,
+                accent, 0.12)
+    return canvas
+
+
+WALLPAPERS = [
+    ("contributions", contributions),
+    ("diff", diff),
+    ("checks", checks),
+    ("tree", tree),
+    ("octicons", octicon_field),
+]
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("themes", nargs="*", default=None,
+                        help="theme slugs; default is all five")
+    parser.add_argument("--size", default="2560x1440")
+    args = parser.parse_args()
+
+    width, height = (int(n) for n in args.size.lower().split("x"))
+    slugs = args.themes or list(THEMES)
+    for slug in slugs:
+        if slug not in THEMES:
+            raise SystemExit(f"{slug} is not one of the GitHub themes")
+
+    primitives = primer.load()
+    icons = load_octicons()
+
+    for slug in slugs:
+        tokens = primitives[THEMES[slug]]
+        directory = os.path.join(REPO, "themes", slug, "backgrounds")
+        os.makedirs(directory, exist_ok=True)
+        for index, (name, draw) in enumerate(WALLPAPERS, start=1):
+            # Seeded off the slug so a rerun reproduces the same wallpaper.
+            # The recipe is the deliverable here as everywhere else in this
+            # repo, but a contribution graph that reshuffles on every run
+            # would be a contribution graph that is obviously fake.
+            seed = f"{slug}:{name}"
+            extra = ({"scheme": CONTRIBUTION_SCHEME[slug]}
+                     if name == "contributions" else {})
+            canvas = draw(tokens, icons, width, height, seed, **extra)
+            destination = os.path.join(directory, f"{index}-{name}.png")
+            canvas.write(destination)
+            megabytes = os.path.getsize(destination) / 1e6
+            flag = "  OVER 2MB" if megabytes > 2 else ""
+            print(f"{slug}/{index}-{name}.png  {megabytes:.2f} MB{flag}")
+
+
+if __name__ == "__main__":
+    main()

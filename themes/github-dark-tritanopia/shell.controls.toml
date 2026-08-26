@@ -1,0 +1,33 @@
+# Buttons. Primer has a real three-state button surface -- rest, hover, active
+# -- and Omarchy blends a single colour at three alphas to get the same effect.
+# Handing it GitHub's three colours at full alpha instead means the states are
+# GitHub's states rather than an approximation of them.
+[controls]
+normal-color        = "#212830"
+normal-fill-alpha   = 1.0
+normal-border       = "#3d444d"
+normal-border-width = 1
+normal-border-alpha = 1.0
+
+hover-cursor-color        = "#262c36"
+hover-cursor-fill-alpha   = 1.0
+hover-cursor-border       = "#3d444d"
+hover-cursor-border-width = 1
+hover-cursor-border-alpha = 1.0
+
+# Keyboard focus gets the focus ring, which is the one thing GitHub will not
+# let you lose track of.
+focus-color        = "#262c36"
+focus-fill-alpha   = 1.0
+focus-border       = "#1f6feb"
+focus-border-width = 2
+focus-border-alpha = 1.0
+
+selected-color        = "#2a313c"
+selected-fill-alpha   = 1.0
+selected-border       = "#1f6feb"
+selected-border-width = 1
+selected-border-alpha = 1.0
+
+pressed-fill-alpha   = 1.0
+selection-fill-alpha = 0.35

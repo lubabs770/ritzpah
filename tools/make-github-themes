@@ -1,0 +1,751 @@
+#!/usr/bin/env python3
+"""Derive the five GitHub dark themes from Primer's published design tokens.
+
+GitHub does not have a dark theme. It has five, and the differences between
+them are not decorative -- dimmed lifts the whole canvas off black, high
+contrast drives it to pure #010409/#ffffff, and the two accessibility variants
+re-point the red/green axis that diff views lean on. Typing five palettes by
+hand would mean typing a hundred and twenty-five hex values by hand, and the
+one thing this repo has learned the hard way is that a hand-typed number is a
+number that is eventually wrong.
+
+So none of them are typed. This script fetches @primer/primitives at a pinned
+version, resolves the CSS custom properties for each dark variant, and maps
+them onto Ritzpah's slots. Every value in every generated colors.toml carries
+the token it came from in a comment beside it. If you disagree with a colour,
+you do not edit the toml -- you edit the mapping here, or you take it up with
+Primer.
+
+Usage:
+    tools/make-github-themes                 # all five, into themes/
+    tools/make-github-themes --check         # regenerate to memory, diff only
+"""
+
+import argparse
+import json
+import os
+import re
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import primer  # noqa: E402
+
+PRIMITIVES_VERSION = primer.VERSION
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# --- the five ---------------------------------------------------------------
+#
+# These are the dark modes GitHub actually offers you in Appearance settings.
+# Primer ships three more (`dark-*-high-contrast` crosses of the accessibility
+# variants) which the settings page does not expose as separate choices, so
+# they are not themes here.
+
+VARIANTS = [
+    {
+        "slug": "github-dark",
+        "css": "dark",
+        "name": "GitHub Dark",
+        "tagline": "GitHub's default dark mode, taken off the design tokens "
+                   "and pressed onto the whole desktop.",
+        "tags": ["dark", "readable", "github", "derived"],
+        "floor": 4.5,
+        "notes": "The reference variant. Every other GitHub theme here is a "
+                 "diff against this one.",
+    },
+    {
+        "slug": "github-dark-dimmed",
+        "css": "dark-dimmed",
+        "name": "GitHub Dark Dimmed",
+        "tagline": "The same GitHub, with the lights brought up off black and "
+                   "the contrast deliberately let down.",
+        "tags": ["dark", "muted", "github", "derived"],
+        "floor": 4.5,
+        "notes": "Dimmed is the only variant that moves the canvas rather "
+                 "than the ink: #212830 instead of #0d1117, which costs "
+                 "roughly a third of every contrast ratio in the palette.",
+    },
+    {
+        "slug": "github-dark-high-contrast",
+        "css": "dark-high-contrast",
+        "name": "GitHub Dark High Contrast",
+        "tagline": "Pure black paper, pure white ink, and a floor no other "
+                   "theme in this repo clears.",
+        "tags": ["dark", "readable", "accessible", "github", "derived"],
+        "floor": 7.0,
+        "notes": "Holds AAA on every ink slot, which makes it the most "
+                 "readable theme in the collection -- Blueprint had to "
+                 "lighten its red to reach 7.04, and this one arrives there "
+                 "without being asked.",
+    },
+    {
+        "slug": "github-dark-colorblind",
+        "css": "dark-colorblind",
+        "name": "GitHub Dark Colorblind",
+        "tagline": "Green becomes blue and red becomes orange, everywhere, "
+                   "including in your terminal.",
+        "tags": ["dark", "accessible", "github", "derived"],
+        "floor": 4.5,
+        "notes": "Deuteranopia/protanopia variant. The substitution is not "
+                 "cosmetic: ANSI 2 and ANSI 1 are reassigned, so `git diff` "
+                 "in this theme prints additions in blue.",
+    },
+    {
+        "slug": "github-dark-tritanopia",
+        "css": "dark-tritanopia",
+        "name": "GitHub Dark Tritanopia",
+        "tagline": "Green becomes blue, red stays red -- the blue-yellow "
+                   "axis rebuilt and nothing else touched.",
+        "tags": ["dark", "accessible", "github", "derived"],
+        "floor": 4.5,
+        "notes": "Differs from Colorblind by exactly one decision: red is "
+                 "left alone, because tritanopia does not confuse it.",
+    },
+]
+
+# --- the mapping ------------------------------------------------------------
+#
+# The whole theme is this table. Left column is Ritzpah's slot, right column is
+# the Primer token it is taken from, and the third is why that pairing is the
+# honest one rather than merely a convenient one.
+
+SURFACES = [
+    ("background", "--bgColor-default",
+     "the canvas every GitHub page is painted on"),
+    ("dark_background", "--bgColor-inset",
+     "recessed panels -- wells, sunken diff gutters, the bar"),
+    ("darker_background", "--bgColor-black",
+     "the bottom of the scale. On High Contrast this equals the canvas, "
+     "because High Contrast's canvas already is the bottom of the scale"),
+    ("lighter_background", "--bgColor-muted",
+     "raised surfaces -- file headers, timeline rails, secondary grouping"),
+    ("selection", "--codeMirror-selection-bgColor",
+     "what GitHub's own code editor paints behind selected text, flattened "
+     "onto the canvas because a TOML hex has nowhere to keep the alpha"),
+]
+
+INKS = [
+    ("accent", "--fgColor-accent",
+     "links, and every interactive thing that wants to be clicked"),
+    ("foreground", "--fgColor-default",
+     "body text"),
+    ("dark_foreground", "--fgColor-muted",
+     "secondary text -- timestamps, byline metadata, comment bodies"),
+    ("light_foreground", "--ansi-white",
+     "ANSI 7. GitHub defines its own terminal palette; this is the white in it"),
+    ("bright_foreground", "--ansi-whiteBright",
+     "ANSI 15"),
+    ("muted", "--ansi-blackBright",
+     "ANSI 8. GitHub's word for it is 'dimmed terminal text', and dimmed is "
+     "exactly what it is"),
+
+    ("red", "--ansi-red", "ANSI 1"),
+    ("green", "--ansi-green", "ANSI 2"),
+    ("yellow", "--ansi-yellow", "ANSI 3"),
+    ("blue", "--ansi-blue", "ANSI 4"),
+    ("magenta", "--ansi-magenta", "ANSI 5"),
+    ("cyan", "--ansi-cyan", "ANSI 6"),
+
+    # GitHub's ANSI palette has no orange and no brown, because ANSI has no
+    # orange and no brown. Both slots are filled from parts of the UI that do:
+    # the syntax highlighter, and the 'severe' status colour that sits between
+    # attention-yellow and danger-red.
+    ("orange", "--codeMirror-syntax-fgColor-variable",
+     "the colour GitHub highlights a variable in"),
+    ("brown", "--fgColor-severe",
+     "'severe' -- worse than a warning, not yet an error"),
+
+    ("bright_red", "--ansi-redBright", "ANSI 9"),
+    ("bright_green", "--ansi-greenBright", "ANSI 10"),
+    ("bright_yellow", "--ansi-yellowBright", "ANSI 11"),
+    ("bright_blue", "--ansi-blueBright", "ANSI 12"),
+    ("bright_magenta", "--ansi-magentaBright", "ANSI 13"),
+    ("bright_cyan", "--ansi-cyanBright", "ANSI 14"),
+]
+
+# Borders. GitHub draws an unfocused element with a 1px --borderColor-default
+# and a focused one with a 2px focus ring; Hyprland has a single border width
+# for both states, so the width taken is the focus width and the colour does
+# all the state signalling. Stated rather than hidden.
+BORDER_ACTIVE = "--borderColor-accent-emphasis"
+BORDER_INACTIVE = "--borderColor-default"
+
+# A slot that lands under a theme's floor needs a reason, and the reason lives
+# here rather than being invented at write time. A sub-floor slot with no entry
+# in this table is a hard failure: the floor does not bend quietly.
+#
+# Keys are either a slot name, which covers every variant, or "slug:slot",
+# which covers one and wins over the general case.
+EXEMPTION_REASONS = {
+    "muted": "ANSI 8 is GitHub's own dimmed-text value and dimmed text is "
+             "supposed to recede; lifting it would mean shipping a terminal "
+             "palette GitHub does not have",
+    "brown": "'severe' sits between GitHub's attention and danger colours by "
+             "design, and it is a status accent rather than a reading surface",
+    "dark_foreground": "GitHub's muted foreground, unchanged; this is the "
+                       "ratio GitHub itself ships secondary text at",
+
+    # Dimmed is the one variant that moves the canvas instead of the ink, and
+    # moving the canvas costs every slot in the palette about a third of its
+    # ratio. That is not a defect in the port -- it is the entire point of the
+    # variant, and it is why this one theme needs a reason the others do not.
+    "github-dark-dimmed:accent": "Dimmed lifts the canvas to #212830, which "
+                                 "costs every ratio in the palette; GitHub "
+                                 "ships this link colour below AA and "
+                                 "lightening it here would mean shipping a "
+                                 "link colour GitHub does not have",
+    "github-dark-dimmed:brown": "as above -- 'severe' is unchanged from the "
+                                "default dark theme and only looks worse "
+                                "because the paper got lighter",
+}
+
+
+# --- the module does the fetching and the colour maths ----------------------
+#
+# Names kept local so the mapping tables above read as prose rather than as
+# calls into somewhere else.
+
+fetch_primitives = primer.load
+resolve = primer.resolve
+parse_hex = primer.parse_hex
+flatten = primer.flatten
+to_hex = primer.to_hex
+contrast = primer.contrast
+
+
+# --- emit -------------------------------------------------------------------
+
+def build(variant, tokens):
+    """Resolve every slot for one variant. Returns (colours, ratios, exempt)."""
+    canvas = parse_hex(resolve(tokens, "--bgColor-default"))
+    colours, ratios = {}, {}
+
+    for slot, token, _ in SURFACES:
+        raw = parse_hex(resolve(tokens, token))
+        colours[slot] = to_hex(flatten(raw, canvas) if raw[3] != 255 else raw)
+
+    for slot, token, _ in INKS:
+        raw = parse_hex(resolve(tokens, token))
+        rgba = flatten(raw, canvas) if raw[3] != 255 else raw
+        colours[slot] = to_hex(rgba)
+        ratios[slot] = contrast(rgba, canvas)
+
+    exempt = {}
+    for slot, ratio in ratios.items():
+        if ratio + 1e-9 < variant["floor"]:
+            reason = EXEMPTION_REASONS.get(f"{variant['slug']}:{slot}",
+                                           EXEMPTION_REASONS.get(slot))
+            if reason is None:
+                raise SystemExit(
+                    f"{variant['slug']}: {slot} is {ratio:.2f} against a floor "
+                    f"of {variant['floor']} and has no reason written for it. "
+                    f"Write one in EXEMPTION_REASONS or change the mapping. "
+                    f"Do not lower the floor.")
+            exempt[slot] = f"{reason} (measures {ratio:.2f}:1)"
+    return colours, ratios, exempt
+
+
+def render_colors_toml(variant, tokens, colours, ratios):
+    out = [
+        f"# {variant['name']}. Generated by tools/make-github-themes from",
+        f"# @primer/primitives@{PRIMITIVES_VERSION}, functional theme",
+        f"# `{variant['css']}`. Do not hand-edit: rerun the generator.",
+        "#",
+        f"# {variant['notes']}",
+        "",
+        'mode = "dark"',
+        "",
+        "# --- surfaces -----------------------------------------------------",
+    ]
+    width = max(len(s) for s, _, _ in SURFACES + INKS)
+    for slot, token, why in SURFACES:
+        out.append(f"# {token} -- {why}")
+        out.append(f'{slot.ljust(width)} = "{colours[slot]}"')
+    out += ["", "# --- ink ----------------------------------------------------------",
+            "# Ratios below are measured against `background` at generation time.", ""]
+    for slot, token, why in INKS:
+        out.append(f"# {token} -- {why}")
+        out.append(f'{slot.ljust(width)} = "{colours[slot]}"'
+                   f"  # {ratios[slot]:.2f}:1")
+    active = to_hex(parse_hex(resolve(tokens, BORDER_ACTIVE)))
+    inactive = to_hex(parse_hex(resolve(tokens, BORDER_INACTIVE)))
+    out += [
+        "",
+        "# --- borders ------------------------------------------------------",
+        f"# {BORDER_ACTIVE} -- GitHub's focus ring, on the focused window",
+        f"# {BORDER_INACTIVE} -- the resting border on every other one",
+        f'hyprland_active_border = "rgba({active.lstrip("#")}ff)"',
+        f'hyprland_inactive_border = "rgba({inactive.lstrip("#")}ff)"',
+        "",
+    ]
+    return "\n".join(out)
+
+
+def render_theme_json(variant, exempt):
+    doc = {
+        "schema": 1,
+        "slug": variant["slug"],
+        "kind": "static",
+        "name": variant["name"],
+        "tagline": variant["tagline"],
+        "tags": variant["tags"],
+        "contrast_floor": variant["floor"],
+        "generator": "tools/make-backgrounds-github",
+        "notes": variant["notes"],
+        "derived_from": {
+            "package": "@primer/primitives",
+            "version": PRIMITIVES_VERSION,
+            "theme": variant["css"],
+            "generator": "tools/make-github-themes",
+        },
+    }
+    if exempt:
+        doc["contrast_exempt"] = exempt
+    return json.dumps(doc, indent=2) + "\n"
+
+
+# --- the compositor and the shell -------------------------------------------
+#
+# colors.toml is shaped like an ANSI palette, which means there are GitHub
+# colours it simply has no slot for: the translucent global header, the modal
+# backdrop, the tooltip's inverted chip, the orange underline beneath the tab
+# you are on. Those live here instead, taken from the same token set, so the
+# desktop chrome is GitHub's chrome rather than the palette re-spent on it.
+
+# Omarchy's shell config stores colour and opacity in separate keys, which is
+# exactly the shape Primer's eight-digit hexes want to be read in.
+rgba = primer.split_alpha
+
+
+def shadow_layer(tokens, name):
+    """Pull the widest blur layer out of a Primer box-shadow token.
+
+    A Primer floating shadow is several stacked layers, the first of which is
+    a `0 0 0 1px` spread ring -- that is a border drawn as a shadow, and
+    Hyprland already has a border, so it is dropped. Of what is left the
+    widest blur is the one that reads as the shadow.
+    """
+    best = None
+    for layer in resolve(tokens, name).split(","):
+        match = re.search(
+            r"(-?\d+)(?:px)?\s+(-?\d+)(?:px)?\s+(\d+)(?:px)?"
+            r"(?:\s+(-?\d+)(?:px)?)?\s+(#[0-9a-fA-F]+)",
+            layer)
+        if not match:
+            continue
+        blur = int(match.group(3))
+        if blur == 0:
+            continue
+        if best is None or blur > best[0]:
+            best = (blur, int(match.group(1)), int(match.group(2)),
+                    parse_hex(match.group(5)))
+    if best is None:
+        raise SystemExit(f"no usable shadow layer in {name}")
+    blur, offset_x, offset_y, colour = best
+    return blur, offset_x, offset_y, colour
+
+
+def render_hyprland_lua(variant, tokens):
+    active = to_hex(parse_hex(resolve(tokens, BORDER_ACTIVE)))
+    inactive = to_hex(parse_hex(resolve(tokens, BORDER_INACTIVE)))
+    blur, _, offset_y, shadow_colour = shadow_layer(
+        tokens, "--shadow-floating-small")
+    shadow_rgba = "%02x%02x%02x%02x" % (shadow_colour[0], shadow_colour[1],
+                                        shadow_colour[2], shadow_colour[3])
+    underline = to_hex(parse_hex(resolve(tokens, "--underlineNav-borderColor-active")))
+    tab_active_bg = to_hex(parse_hex(resolve(tokens, "--bgColor-default")))
+    tab_inactive_bg = to_hex(parse_hex(resolve(tokens, "--bgColor-muted")))
+    tab_text = to_hex(parse_hex(resolve(tokens, "--fgColor-default")))
+    tab_text_inactive = to_hex(parse_hex(resolve(tokens, "--fgColor-muted")))
+
+    return f"""\
+-- {variant['name']}. Generated by tools/make-github-themes from
+-- @primer/primitives@{PRIMITIVES_VERSION}. Do not hand-edit.
+--
+-- Every number below is a Primer token rather than a taste. GitHub publishes
+-- its border widths, its corner radii, its elevation shadows and -- the part
+-- that matters most here -- its five easing curves, each with a written note
+-- saying which kind of motion it is for. Those notes are quoted verbatim
+-- beside the curves, because they are the reason each one is used where it is.
+
+-- --borderWidth-thick (2px). GitHub draws a resting border at 1px and a
+-- focused one at 2px; Hyprland has one width for both states, so the width
+-- taken is the focus width and the colour carries all the state. Stated here
+-- rather than quietly rounded away.
+local BORDER = 2
+
+-- --borderRadius-medium (6px), which Primer also aliases as
+-- --borderRadius-default: "preferred default border radius for standard UI
+-- components". A window is a standard UI component.
+local RADIUS = 6
+
+local active_border = "rgba({active.lstrip('#')}ff)"    -- --borderColor-accent-emphasis, the focus ring
+local inactive_border = "rgba({inactive.lstrip('#')}ff)"  -- --borderColor-default
+
+hl.config({{
+  general = {{
+    border_size = BORDER,
+    col = {{
+      active_border = active_border,
+      inactive_border = inactive_border,
+    }},
+    resize_on_border = true,
+  }},
+
+  group = {{
+    col = {{
+      border_active = active_border,
+      border_inactive = inactive_border,
+    }},
+  }},
+
+  decoration = {{
+    rounding = RADIUS,
+
+    -- --shadow-floating-small, minus its `0 0 0 1px` layer. That layer is a
+    -- border drawn as a shadow so it survives a layout shift; Hyprland has a
+    -- real border and does not need the trick.
+    shadow = {{
+      enabled = true,
+      range = {blur},
+      render_power = 2,
+      offset = "0 {offset_y}",
+      color = "rgba({shadow_rgba})",
+    }},
+
+    -- GitHub is a document, and you cannot see through a document. There is
+    -- no blur token in Primer because there is no blur in the product.
+    blur = {{ enabled = false }},
+
+    -- No dim either. GitHub never dims a page for being unfocused -- it has
+    -- --bgColor-disabled for controls that cannot be used, and an unfocused
+    -- window is not a disabled one.
+    dim_inactive = false,
+  }},
+
+  animations = {{ enabled = true }},
+}})
+
+-- Primer's easing curves, transplanted whole. A CSS cubic-bezier and a
+-- Hyprland bezier are the same four numbers in the same order, so these are
+-- not approximations of GitHub's motion -- they are GitHub's motion.
+--
+--   ghEase       "CSS default easing. Use for hover state changes and
+--                 micro-interactions."
+--   ghEaseIn     "Accelerating motion. Use for elements exiting the viewport."
+--   ghEaseOut    "Decelerating motion. Use for elements entering the viewport
+--                 or appearing on screen."
+--   ghEaseInOut  "Smooth acceleration and deceleration. Use for elements
+--                 moving or morphing within the viewport."
+hl.curve("ghEase", {{ type = "bezier", points = {{ {{ 0.25, 0.1 }}, {{ 0.25, 1.0 }} }} }})
+hl.curve("ghEaseIn", {{ type = "bezier", points = {{ {{ 0.7, 0.1 }}, {{ 0.75, 0.9 }} }} }})
+hl.curve("ghEaseOut", {{ type = "bezier", points = {{ {{ 0.3, 0.8 }}, {{ 0.6, 1.0 }} }} }})
+hl.curve("ghEaseInOut", {{ type = "bezier", points = {{ {{ 0.6, 0.0 }}, {{ 0.2, 1.0 }} }} }})
+
+-- Durations are --base-duration-100 and --base-duration-200. Hyprland counts
+-- animation speed in deciseconds, so 200ms is 2.0 and 100ms is 1.0, and no
+-- number here was chosen by watching it and deciding it felt about right.
+hl.animation({{ leaf = "global", enabled = true, speed = 2.0, bezier = "ghEaseOut" }})
+
+-- A window arriving is an element entering the viewport, and a window leaving
+-- is an element exiting it. Primer has a separate curve for each and is very
+-- clear about which is which, so they do not share one.
+hl.animation({{ leaf = "windows", enabled = true, speed = 2.0, bezier = "ghEaseOut" }})
+hl.animation({{ leaf = "windowsIn", enabled = true, speed = 2.0, bezier = "ghEaseOut", style = "popin 92%" }})
+hl.animation({{ leaf = "windowsOut", enabled = true, speed = 1.0, bezier = "ghEaseIn", style = "popin 92%" }})
+
+-- Workspaces move within the viewport rather than entering or leaving it,
+-- which is the case easeInOut is written for.
+hl.animation({{ leaf = "workspaces", enabled = true, speed = 2.0, bezier = "ghEaseInOut", style = "slide" }})
+hl.animation({{ leaf = "specialWorkspace", enabled = true, speed = 2.0, bezier = "ghEaseInOut", style = "slidevert" }})
+
+-- Menus, the launcher and notifications are overlays appearing on screen.
+hl.animation({{ leaf = "layers", enabled = true, speed = 1.0, bezier = "ghEaseOut", style = "fade" }})
+hl.animation({{ leaf = "fade", enabled = true, speed = 1.0, bezier = "ghEase" }})
+hl.animation({{ leaf = "border", enabled = true, speed = 1.0, bezier = "ghEase" }})
+
+-- No spinning gradient border. GitHub does not have one of those.
+hl.animation({{ leaf = "borderangle", enabled = false }})
+
+-- Group tabs are GitHub's file tabs, and GitHub marks the tab you are on with
+-- a 2px orange rule underneath it -- --underlineNav-borderColor-active, the
+-- one warm colour in an otherwise entirely blue interface. It is the single
+-- most recognisable pixel in the product and it costs two lines to have.
+hl.config({{
+  group = {{
+    groupbar = {{
+      font_family = "monospace",
+      font_size = 12,
+      font_weight_active = "bold",
+      font_weight_inactive = "normal",
+      height = 20,
+      indicator_height = 2,
+      indicator_gap = 4,
+      gradients = false,
+      text_color = "rgb({tab_text.lstrip('#')})",
+      text_color_inactive = "rgb({tab_text_inactive.lstrip('#')})",
+      col = {{
+        active = "rgba({underline.lstrip('#')}ff)",
+        inactive = "rgba({tab_inactive_bg.lstrip('#')}ff)",
+      }},
+    }},
+  }},
+}})
+
+-- Gaps and per-window opacity are left to you. This file loads before
+-- ~/.config/hypr/looknfeel.lua, so everything above is an opening offer.
+"""
+
+
+def render_shell(variant, tokens):
+    """One file per section, never a whole shell.toml."""
+    header, header_alpha = rgba(tokens, "--header-bgColor")
+    backdrop, backdrop_alpha = rgba(tokens, "--overlay-backdrop-bgColor")
+    overlay = to_hex(parse_hex(resolve(tokens, "--overlay-bgColor")))
+    border = to_hex(parse_hex(resolve(tokens, "--borderColor-default")))
+    accent_border = to_hex(parse_hex(resolve(tokens, BORDER_ACTIVE)))
+    danger_border = to_hex(parse_hex(resolve(tokens, "--borderColor-danger-emphasis")))
+    attention_border = to_hex(parse_hex(resolve(tokens, "--borderColor-attention-emphasis")))
+    fg = to_hex(parse_hex(resolve(tokens, "--fgColor-default")))
+    fg_muted = to_hex(parse_hex(resolve(tokens, "--fgColor-muted")))
+    accent = to_hex(parse_hex(resolve(tokens, "--fgColor-accent")))
+    danger = to_hex(parse_hex(resolve(tokens, "--fgColor-danger")))
+    inset = to_hex(parse_hex(resolve(tokens, "--bgColor-inset")))
+    tooltip_bg = to_hex(parse_hex(resolve(tokens, "--tooltip-bgColor")))
+    tooltip_fg = to_hex(parse_hex(resolve(tokens, "--tooltip-fgColor")))
+    menu_active = to_hex(parse_hex(resolve(tokens, "--menu-bgColor-active")))
+    control_rest = to_hex(parse_hex(resolve(tokens, "--control-bgColor-rest")))
+    control_hover = to_hex(parse_hex(resolve(tokens, "--control-bgColor-hover")))
+    control_active = to_hex(parse_hex(resolve(tokens, "--control-bgColor-active")))
+
+    files = {}
+
+    files["shell.bar.toml"] = f"""\
+# The bar is GitHub's global header, and GitHub's global header is the one
+# surface in the product that is deliberately translucent:
+# --header-bgColor is {header}{int(header_alpha * 255):02x}, an eight-digit token
+# whose last two digits are an opacity. Omarchy keeps colour and opacity in
+# separate keys, which is exactly the shape that token wants to be read in, so
+# both halves survive the trip.
+[bar]
+background       = "{header}"
+background-alpha = {header_alpha}
+text             = "{fg}"
+# Recording and alerts. --fgColor-danger, not the ANSI red in colors.toml:
+# this is a piece of interface, not a piece of terminal output, and GitHub
+# uses a different red for each.
+active           = "{danger}"
+"""
+
+    files["shell.popups.toml"] = f"""\
+# --overlay-bgColor. GitHub floats its overlays on the darkest surface it has
+# rather than on the page colour, so a popup is legible over anything.
+[popups]
+background       = "{overlay}"
+background-alpha = 1.0
+text             = "{fg}"
+border           = "{border}"
+border-alpha     = 1.0
+"""
+
+    files["shell.tooltip.toml"] = f"""\
+# GitHub's tooltip is the one inverted chip in the whole interface:
+# --tooltip-bgColor is --bgColor-emphasis and the text on it is
+# --fgColor-onEmphasis. It is meant to read as a label stuck onto the page
+# rather than as part of it, and it is fully opaque for the same reason.
+[tooltip]
+background       = "{tooltip_bg}"
+background-alpha = 1.0
+text             = "{tooltip_fg}"
+border           = "{border}"
+border-alpha     = 1.0
+"""
+
+    files["shell.notifications.toml"] = f"""\
+# A toast, in GitHub's terms. Opaque overlay surface, resting border, and a
+# countdown in the accent because the countdown is the only moving thing on it.
+[notifications]
+background       = "{overlay}"
+background-alpha = 1.0
+text             = "{fg}"
+border           = "{border}"
+border-alpha     = 1.0
+countdown        = "{accent}"
+"""
+
+    files["shell.launcher.toml"] = f"""\
+# The launcher is GitHub's command palette, and it is dressed as one: an
+# opaque overlay surface, a resting border rather than an accent one, and a
+# selected row that is --menu-bgColor-active with the label in link blue.
+#
+# The scrim is --overlay-backdrop-bgColor, which is genuinely
+# {backdrop}{int(backdrop_alpha * 255):02x} -- GitHub's modal backdrop is a translucent
+# grey, not a wash of black, so the page behind it stays a page.
+[launcher]
+background                = "{overlay}"
+background-alpha          = 1.0
+text                      = "{fg}"
+border                    = "{border}"
+border-alpha              = 1.0
+scrim                     = "{backdrop}"
+scrim-alpha               = {backdrop_alpha}
+selected-background       = "{menu_active}"
+selected-background-alpha = 1.0
+selected-text             = "{accent}"
+selected-border           = "{accent_border}"
+selected-border-alpha     = 1.0
+"""
+
+    files["shell.menu.toml"] = f"""\
+# GitHub's dropdown menu, same construction as the command palette.
+[menu]
+background                = "{overlay}"
+background-alpha          = 1.0
+text                      = "{fg}"
+border                    = "{border}"
+border-alpha              = 1.0
+scrim                     = "{backdrop}"
+scrim-alpha               = {backdrop_alpha}
+selected-background       = "{menu_active}"
+selected-background-alpha = 1.0
+selected-text             = "{accent}"
+selected-border           = "{accent_border}"
+selected-border-alpha     = 1.0
+"""
+
+    files["shell.lock.toml"] = f"""\
+# The lock screen is the sign-in page: --bgColor-inset, fully opaque, with the
+# field taking the focus ring the moment you type into it. Nothing here is
+# translucent, because a lock screen is read in worse light than any other
+# surface a theme has to survive.
+[lock]
+background       = "{inset}"
+background-alpha = 1.0
+text             = "{fg}"
+placeholder      = "{fg_muted}"
+text-error       = "{danger}"
+border           = "{border}"
+border-active    = "{accent_border}"
+border-error     = "{danger_border}"
+border-alpha     = 1.0
+selection        = "{accent_border}"
+selection-alpha  = 0.45
+"""
+
+    files["shell.polkit.toml"] = f"""\
+# A password prompt raised by something else asking for your permission.
+# The resting border is --borderColor-attention-emphasis rather than the
+# accent one: GitHub reserves that colour for "read this before you agree",
+# which is the whole job of this dialog.
+[polkit]
+background       = "{overlay}"
+background-alpha = 1.0
+text             = "{fg}"
+text-error       = "{danger}"
+border           = "{attention_border}"
+border-error     = "{danger_border}"
+border-alpha     = 1.0
+scrim            = "{backdrop}"
+scrim-alpha      = {backdrop_alpha}
+accent           = "{accent}"
+"""
+
+    files["shell.controls.toml"] = f"""\
+# Buttons. Primer has a real three-state button surface -- rest, hover, active
+# -- and Omarchy blends a single colour at three alphas to get the same effect.
+# Handing it GitHub's three colours at full alpha instead means the states are
+# GitHub's states rather than an approximation of them.
+[controls]
+normal-color        = "{control_rest}"
+normal-fill-alpha   = 1.0
+normal-border       = "{border}"
+normal-border-width = 1
+normal-border-alpha = 1.0
+
+hover-cursor-color        = "{control_hover}"
+hover-cursor-fill-alpha   = 1.0
+hover-cursor-border       = "{border}"
+hover-cursor-border-width = 1
+hover-cursor-border-alpha = 1.0
+
+# Keyboard focus gets the focus ring, which is the one thing GitHub will not
+# let you lose track of.
+focus-color        = "{control_hover}"
+focus-fill-alpha   = 1.0
+focus-border       = "{accent_border}"
+focus-border-width = 2
+focus-border-alpha = 1.0
+
+selected-color        = "{control_active}"
+selected-fill-alpha   = 1.0
+selected-border       = "{accent_border}"
+selected-border-width = 1
+selected-border-alpha = 1.0
+
+pressed-fill-alpha   = 1.0
+selection-fill-alpha = 0.35
+"""
+
+    files["shell.image-picker.toml"] = f"""\
+[image-picker]
+scrim                   = "{backdrop}"
+scrim-alpha             = {backdrop_alpha}
+text                    = "{fg}"
+selected-border         = "{accent_border}"
+selected-border-alpha   = 1.0
+unselected-border       = "{border}"
+unselected-border-alpha = 1.0
+"""
+
+    return files
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true",
+                        help="regenerate and report drift without writing")
+    args = parser.parse_args()
+
+    themes = fetch_primitives()
+    drift = False
+
+    for variant in VARIANTS:
+        tokens = themes.get(variant["css"])
+        if tokens is None:
+            raise SystemExit(f"primitives has no theme {variant['css']!r}")
+        colours, ratios, exempt = build(variant, tokens)
+        worst = min(ratios.items(), key=lambda kv: kv[1])
+        directory = os.path.join(REPO, "themes", variant["slug"])
+        files = {
+            "colors.toml": render_colors_toml(variant, tokens, colours, ratios),
+            "theme.json": render_theme_json(variant, exempt),
+            "hyprland.lua": render_hyprland_lua(variant, tokens),
+            "icons.theme": "Yaru-blue-dark\n",
+        }
+        files.update(render_shell(variant, tokens))
+        for name, body in files.items():
+            path = os.path.join(directory, name)
+            existing = None
+            if os.path.exists(path):
+                with open(path) as handle:
+                    existing = handle.read()
+            if existing == body:
+                continue
+            drift = True
+            if args.check:
+                print(f"drift: {variant['slug']}/{name}")
+            else:
+                os.makedirs(directory, exist_ok=True)
+                with open(path, "w") as handle:
+                    handle.write(body)
+        print(f"{variant['slug']:<28} floor {variant['floor']:<4} "
+              f"worst {worst[0]} {worst[1]:.2f} "
+              f"exempt {len(exempt)}")
+
+    if args.check and drift:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

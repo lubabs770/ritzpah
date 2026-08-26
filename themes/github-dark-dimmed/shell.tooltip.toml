@@ -1,0 +1,10 @@
+# GitHub's tooltip is the one inverted chip in the whole interface:
+# --tooltip-bgColor is --bgColor-emphasis and the text on it is
+# --fgColor-onEmphasis. It is meant to read as a label stuck onto the page
+# rather than as part of it, and it is fully opaque for the same reason.
+[tooltip]
+background       = "#3d444d"
+background-alpha = 1.0
+text             = "#f0f6fc"
+border           = "#3d444d"
+border-alpha     = 1.0
