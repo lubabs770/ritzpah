@@ -1,0 +1,20 @@
+# The launcher is GitHub's command palette, and it is dressed as one: an
+# opaque overlay surface, a resting border rather than an accent one, and a
+# selected row that is --menu-bgColor-active with the label in link blue.
+#
+# The scrim is --overlay-backdrop-bgColor, which is genuinely
+# #d1d7e066 -- GitHub's modal backdrop is a translucent
+# grey, not a wash of black, so the page behind it stays a page.
+[launcher]
+background                = "#010409"
+background-alpha          = 1.0
+text                      = "#ffffff"
+border                    = "#b7bdc8"
+border-alpha              = 1.0
+scrim                     = "#d1d7e0"
+scrim-alpha               = 0.4
+selected-background       = "#151b23"
+selected-background-alpha = 1.0
+selected-text             = "#74b9ff"
+selected-border           = "#409eff"
+selected-border-alpha     = 1.0

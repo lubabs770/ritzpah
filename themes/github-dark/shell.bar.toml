@@ -1,0 +1,14 @@
+# The bar is GitHub's global header, and GitHub's global header is the one
+# surface in the product that is deliberately translucent:
+# --header-bgColor is #151b23f1, an eight-digit token
+# whose last two digits are an opacity. Omarchy keeps colour and opacity in
+# separate keys, which is exactly the shape that token wants to be read in, so
+# both halves survive the trip.
+[bar]
+background       = "#151b23"
+background-alpha = 0.949
+text             = "#f0f6fc"
+# Recording and alerts. --fgColor-danger, not the ANSI red in colors.toml:
+# this is a piece of interface, not a piece of terminal output, and GitHub
+# uses a different red for each.
+active           = "#f85149"

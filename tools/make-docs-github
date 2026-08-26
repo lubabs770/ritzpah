@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""Contact sheets for the five GitHub themes.
+
+Two images per theme, both of them derived from the theme's own files rather
+than from anything typed here: a palette strip labelled with the hexes that are
+actually in colors.toml, and a five-across sheet of the wallpapers that are
+actually in backgrounds/. The site picks both up by filename.
+
+    tools/make-docs-github
+"""
+
+import os
+import re
+import subprocess
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DOCS = os.path.join(REPO, "docs")
+MONO = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Regular.ttf"
+MONO_BOLD = "/usr/share/fonts/TTF/JetBrainsMonoNerdFont-Bold.ttf"
+
+SLUGS = ["github-dark", "github-dark-dimmed", "github-dark-high-contrast",
+         "github-dark-colorblind", "github-dark-tritanopia"]
+
+# The eight hues, in the order GitHub's own docs list its ANSI palette.
+SHOWN = ["red", "green", "yellow", "blue", "magenta", "cyan", "orange", "brown"]
+
+ASSIGN = re.compile(r'^\s*([a-z_]+)\s*=\s*"(#[0-9a-fA-F]{6})"')
+
+
+def read_colors(slug):
+    colours = {}
+    with open(os.path.join(REPO, "themes", slug, "colors.toml")) as handle:
+        for line in handle:
+            match = ASSIGN.match(line)
+            if match:
+                colours[match.group(1)] = match.group(2)
+    return colours
+
+
+def palette(slug, colours):
+    width, height = 1400, 190
+    pad, gap = 24, 22
+    count = len(SHOWN)
+    cell = (width - 2 * pad - (count - 1) * gap) / count
+    command = ["magick", "-size", f"{width}x{height}",
+               f"xc:{colours['background']}"]
+    for index, slot in enumerate(SHOWN):
+        x = pad + index * (cell + gap)
+        command.extend([
+            "-fill", colours[slot], "-stroke", "none",
+            "-draw", f"rectangle {x:.0f},18 {x + cell:.0f},108",
+            "-font", MONO_BOLD, "-pointsize", "21", "-fill", colours[slot],
+            "-annotate", f"+{x:.0f}+140", colours[slot],
+            "-font", MONO, "-pointsize", "18",
+            "-fill", colours["dark_foreground"],
+            "-annotate", f"+{x:.0f}+168", slot])
+    destination = os.path.join(DOCS, f"{slug}-palette.png")
+    command.extend(["-depth", "8", "-define", "png:compression-level=9",
+                    destination])
+    subprocess.run(command, check=True)
+    return destination
+
+
+def sheet(slug):
+    folder = os.path.join(REPO, "themes", slug, "backgrounds")
+    walls = sorted(os.path.join(folder, name) for name in os.listdir(folder)
+                   if name.endswith(".png"))
+    destination = os.path.join(DOCS, f"{slug}-wallpapers.jpg")
+    command = ["magick", "montage", *walls, "-tile", f"{len(walls)}x1",
+               "-geometry", "528x297+0+0", "-background", "none",
+               "-quality", "88", destination]
+    subprocess.run(command, check=True)
+    return destination
+
+
+def main():
+    for slug in SLUGS:
+        colours = read_colors(slug)
+        for path in (palette(slug, colours), sheet(slug)):
+            print(f"{os.path.relpath(path, REPO)}  "
+                  f"{os.path.getsize(path) / 1e6:.2f} MB")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "slug": "github-dark-colorblind",
+  "kind": "static",
+  "name": "GitHub Dark Colorblind",
+  "tagline": "Green becomes blue and red becomes orange, everywhere, including in your terminal.",
+  "tags": [
+    "dark",
+    "accessible",
+    "github",
+    "derived"
+  ],
+  "contrast_floor": 4.5,
+  "generator": "tools/make-backgrounds-github",
+  "notes": "Deuteranopia/protanopia variant. The substitution is not cosmetic: ANSI 2 and ANSI 1 are reassigned, so `git diff` in this theme prints additions in blue.",
+  "derived_from": {
+    "package": "@primer/primitives",
+    "version": "11.10.0",
+    "theme": "dark-colorblind",
+    "generator": "tools/make-github-themes"
+  },
+  "contrast_exempt": {
+    "muted": "ANSI 8 is GitHub's own dimmed-text value and dimmed text is supposed to recede; lifting it would mean shipping a terminal palette GitHub does not have (measures 3.57:1)"
+  }
+}

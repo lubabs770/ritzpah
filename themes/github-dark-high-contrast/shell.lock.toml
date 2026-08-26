@@ -1,0 +1,16 @@
+# The lock screen is the sign-in page: --bgColor-inset, fully opaque, with the
+# field taking the focus ring the moment you type into it. Nothing here is
+# translucent, because a lock screen is read in worse light than any other
+# surface a theme has to survive.
+[lock]
+background       = "#010409"
+background-alpha = 1.0
+text             = "#ffffff"
+placeholder      = "#b7bdc8"
+text-error       = "#ff9492"
+border           = "#b7bdc8"
+border-active    = "#409eff"
+border-error     = "#ff6a69"
+border-alpha     = 1.0
+selection        = "#409eff"
+selection-alpha  = 0.45

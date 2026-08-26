@@ -1,0 +1,14 @@
+# GitHub's dropdown menu, same construction as the command palette.
+[menu]
+background                = "#010409"
+background-alpha          = 1.0
+text                      = "#f0f6fc"
+border                    = "#3d444d"
+border-alpha              = 1.0
+scrim                     = "#212830"
+scrim-alpha               = 0.4
+selected-background       = "#151b23"
+selected-background-alpha = 1.0
+selected-text             = "#4493f8"
+selected-border           = "#1f6feb"
+selected-border-alpha     = 1.0

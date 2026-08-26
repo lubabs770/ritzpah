@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "slug": "github-dark-dimmed",
+  "kind": "static",
+  "name": "GitHub Dark Dimmed",
+  "tagline": "The same GitHub, with the lights brought up off black and the contrast deliberately let down.",
+  "tags": [
+    "dark",
+    "muted",
+    "github",
+    "derived"
+  ],
+  "contrast_floor": 4.5,
+  "generator": "tools/make-backgrounds-github",
+  "notes": "Dimmed is the only variant that moves the canvas rather than the ink: #212830 instead of #0d1117, which costs roughly a third of every contrast ratio in the palette.",
+  "derived_from": {
+    "package": "@primer/primitives",
+    "version": "11.10.0",
+    "theme": "dark-dimmed",
+    "generator": "tools/make-github-themes"
+  },
+  "contrast_exempt": {
+    "accent": "Dimmed lifts the canvas to #212830, which costs every ratio in the palette; GitHub ships this link colour below AA and lightening it here would mean shipping a link colour GitHub does not have (measures 4.33:1)",
+    "muted": "ANSI 8 is GitHub's own dimmed-text value and dimmed text is supposed to recede; lifting it would mean shipping a terminal palette GitHub does not have (measures 2.81:1)",
+    "brown": "as above -- 'severe' is unchanged from the default dark theme and only looks worse because the paper got lighter (measures 4.04:1)"
+  }
+}
