@@ -26,6 +26,7 @@ cd ritzpah
 | `ritzpah contrast [name...] [--floor N]` | WCAG ratio per ink slot, worst first |
 | `ritzpah show <name>` | everything known about one theme, as JSON |
 | `ritzpah site [dir]` | build the static site into `site/` |
+| `ritzpah iss-tle` | refresh ISS Cockpit's fallback orbit — **the only networked verb** |
 
 `./install` is a thin wrapper kept for older instructions.
 
@@ -36,7 +37,7 @@ only mean the installed theme changes under you. The clone is not load-bearing.
 ## Repo layout
 
 ```
-ritzpah                               CLI: list, install, validate, contrast, show, site
+ritzpah                               CLI: list, install, validate, contrast, show, site, iss-tle
 install                               thin wrapper kept for older instructions
 THEME_JSON.md                         the theme.json schema, and why it is forgiving
 RITZPAH_SKILL.md                      full build guide, gotchas, house rules
@@ -49,6 +50,9 @@ tools/make-github-themes              derives the five GitHub themes from those 
 tools/make-backgrounds*               one wallpaper generator per theme
 tools/make-preview-github             renders the GitHub themes' preview cards
 tools/make-docs-github                palette strips and contact sheets for the GitHub themes
+tools/make-preview-iss-cockpit        renders that preview from live telemetry
+tools/ritzpah-iss-tle.py              the one networked verb; refreshes a fallback orbit
+ritzpahd/                             optional Rust daemon: live ISS telemetry for ISS Cockpit
 docs/                                 palette strips and wallpaper contact sheets
 .github/workflows/pages.yml           validates every theme, then publishes the site
 ```
@@ -98,6 +102,29 @@ itself from something outside the repo.
   and never into this repo. That directory is Omarchy's own working copy and is
   rebuilt from scratch on every theme switch, so the committed version of the
   file stays the proven fallback.
+
+[ISS Cockpit](themes/iss-cockpit) is the second, and it is the first theme here
+that talks to anything. It keeps both rules — the theme itself has no timer and
+writes only `cockpit.frag` into the generated directory — but it comes with
+something no other theme has: **`ritzpahd`, an optional daemon** that holds a
+WebSocket to the public ISSLIVE feed and drives the panel with real cabin
+telemetry.
+
+That is a genuine widening of what this repo ships, so it is worth being exact
+about the seam:
+
+- The **theme** is unchanged in kind. Install it, run nothing, and it is a
+  self-contained live theme that computes an orbit locally and never opens a
+  socket.
+- The **daemon** is a separate binary you build and start yourself. No unit, no
+  hook, no autostart, and nothing in the install path builds or runs it.
+- It hands its data to the shader by painting 64×2 pixels of real screen that
+  the shader reads out of the composited frame, because Hyprland's screen-shader
+  uniforms are a fixed compiled-in enum with no second sampler. See
+  [TELEMETRY.md](themes/iss-cockpit/TELEMETRY.md).
+
+Its Rust sources are in the audit surface below, found by the same scan as
+everything else.
 
 `ritzpah list` prints the kind, read from `theme.json`.
 
@@ -189,6 +216,7 @@ your computer is a website!!! famous website based themes
 themes dynamically built in real time from ridiculous variables — sports scores,
   the weather. The variable drives hue and chroma, never the luminance the
   contrast floor depends on.
+  (ISS Cockpit is the first of these, and the variable is a space station.)
 ```
 
 ## License

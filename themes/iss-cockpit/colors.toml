@@ -1,0 +1,61 @@
+# ISS Cockpit. The palette is not the spacecraft. The ISS is white Kevlar,
+# gold Kapton and aluminium in raw sunlight, and a terminal that colour would
+# be a hospital corridor.
+#
+# So the palette is what a cockpit looks like on the NIGHT side of the orbit,
+# forty-five minutes at a time: the panel lit by its own backlighting, the
+# annunciators in their real regulation colours, and the Earth limb out the
+# window. Every ink slot below is a specific light source, named.
+mode = "dark"
+
+# Electroluminescent panel backlighting. The blue-green wash behind every
+# legend on a crewed spacecraft panel since Apollo, because EL phosphor is
+# cheap, flat, dimmable to nothing, and does not wreck dark adaptation.
+accent = "#4fd6c8"
+# A selected readout, lit from behind.
+selection = "#123a4a"
+# The instrument bezels themselves, in earthlight. The dimmest thing on the
+# panel and the only slot here that is not emitting.
+muted = "#8d9cad"
+
+# Orbital night. Not black -- there is airglow at 90 km, there is zodiacal
+# light, and the window itself scatters. A real night side never reads as zero.
+background = "#04070c"
+dark_background = "#020409"
+darker_background = "#010204"
+lighter_background = "#0d141f"
+
+# Panel legend white. Silkscreened, slightly cool, lit by the EL underneath.
+foreground = "#cfdae6"
+dark_foreground = "#9aabbb"
+light_foreground = "#e3ebf3"
+# A readout at full brightness, which is what you turn it to when something
+# has gone wrong and you want to be certain what it says.
+bright_foreground = "#f6fafd"
+
+# The eight hues are eight real lights: five regulation annunciator colours
+# from a crewed caution-and-warning panel, and three things out the window.
+red = "#ff6b5e"        # EMERGENCY. Fire, rapid depress, toxic atmosphere.
+orange = "#ffa657"     # CAUTION. Something is wrong and you have time.
+yellow = "#ffd166"     # ADVISORY. Something changed and you should know.
+green = "#5ee08a"      # GO. Nominal, and also airglow: atomic oxygen, 557.7 nm.
+cyan = "#5fd8e0"       # The EL backlight, run up to full.
+blue = "#7fb0ff"       # The Earth limb. Rayleigh scattering, from above it.
+magenta = "#d99aee"    # Aurora australis, seen down the side of the orbit.
+brown = "#d4a96a"      # Kapton. The gold multi-layer insulation, in sunlight --
+                       # the one slot here that is a material and not a light.
+
+# Bright variants: the same lamp, turned up.
+bright_red = "#ff9086"
+bright_yellow = "#ffe2a0"
+bright_green = "#8aeaad"
+bright_cyan = "#93e8ee"
+bright_blue = "#a8c8ff"
+bright_magenta = "#e8bcf5"
+
+# The static fallback. hyprland.lua overrides both of these on every Hyprland
+# config load with colours derived from where the ISS actually is -- sunlit or
+# eclipsed, and how far around the orbit. If the Lua is not running, this is
+# what you get: full sunlight, nothing wrong, everything nominal.
+hyprland_active_border = "rgba(4fd6c8ff) rgba(7fb0ffff) rgba(f6fafdff) 15deg"
+hyprland_inactive_border = "rgba(123a4acc) rgba(0d141fcc) 15deg"

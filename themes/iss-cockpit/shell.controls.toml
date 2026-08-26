@@ -1,0 +1,34 @@
+# Control states as levels of backlighting rather than as different colours.
+# A panel legend does not change hue when you touch it; it gets brighter.
+[controls]
+# Normal: the bezel, lit by whatever is spilling off the next instrument.
+normal-color        = "#9aabbb"
+normal-fill-alpha   = 0.03
+normal-border       = "#8d9cad"
+normal-border-width = 1
+normal-border-alpha = 0.35
+
+# Hover: the same switch guard, with the EL turned up.
+hover-cursor-color        = "#cfdae6"
+hover-cursor-fill-alpha   = 0.07
+hover-cursor-border       = "#5fd8e0"
+hover-cursor-border-width = 1
+hover-cursor-border-alpha = 0.55
+
+# Focus: full backlight. Deliberately louder than hover -- hover is where the
+# mouse happens to be, focus is where the next keystroke is going, and on a
+# panel that distinction is the difference between reading and actuating.
+focus-color        = "#f6fafd"
+focus-fill-alpha   = 0.10
+focus-border       = "#4fd6c8"
+focus-border-width = 2
+focus-border-alpha = 1.0
+
+selected-color        = "#f6fafd"
+selected-fill-alpha   = 0.16
+selected-border       = "#4fd6c8"
+selected-border-width = 1
+selected-border-alpha = 0.7
+
+pressed-fill-alpha   = 0.26
+selection-fill-alpha = 0.34

@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# preview.png for the ISS Cockpit theme.
+#
+# Rendered with ImageMagick, never screencaptured -- a screenshot of a shader
+# theme is a photograph of one frame of something that is moving, and it ages
+# into a lie the moment the orbit does.
+#
+# EVERY NUMBER IN THIS IMAGE IS MEASURED, NOT TYPED. The gauge values come from
+# running the real daemon against the real feed for a few seconds; the contrast
+# figures come from `ritzpah contrast`. This repo has a rule about hand-written
+# measurements and it exists because a shipped preview once asserted "16 slots"
+# against a 20-slot palette. If the daemon cannot reach the station, this
+# script prints "--" and says NO SIGNAL on the image rather than inventing a
+# plausible cabin pressure.
+set -euo pipefail
+
+REPO="$(cd "$(dirname "$0")/.." && pwd)"
+THEME="$REPO/themes/iss-cockpit"
+OUT="$THEME/preview.png"
+W=1800
+H=1012
+
+command -v magick >/dev/null || { echo "need ImageMagick 7 (magick)" >&2; exit 1; }
+
+# Resolve the font to a FILE. ImageMagick's font-by-family lookup goes through
+# its own list, not fontconfig, and misses plenty of installed families -- it
+# then fails mid-render rather than falling back, which loses the whole image.
+MONO=$(fc-match "JetBrainsMono Nerd Font:style=Regular" --format "%{file}" 2>/dev/null || true)
+[ -n "$MONO" ] && [ -f "$MONO" ] || MONO=$(fc-match "monospace" --format "%{file}")
+INK="#cfdae6"; MUTED="#8d9cad"
+ACCENT="#4fd6c8"; CYAN="#5fd8e0"; GREEN="#5ee08a"; ORANGE="#ffa657"
+BLUE="#7fb0ff"; GOLD="#d4a96a"
+
+# ---------------------------------------------------------- real telemetry
+echo "  sampling the real station..."
+SAMPLE=""
+if [ -x "$REPO/ritzpahd/target/release/ritzpahd" ]; then
+  SAMPLE=$(timeout 25 "$REPO/ritzpahd/target/release/ritzpahd" --print 2>/dev/null | tail -1 || true)
+fi
+
+field() { sed -n "s/.*$1=\([-0-9.]*\).*/\1/p" <<<"$SAMPLE"; }
+if [ -n "$SAMPLE" ]; then
+  CABIN=$(field cabin); CCAA=$(field ccaa); CREW=$(field crewlock)
+  ARRAY=$(field array); BETA=$(field beta); PPCO2=$(field ppCO2)
+  LIVE="ACQUIRED"; LIVE_COL="$GREEN"
+else
+  CABIN="--"; CCAA="--"; CREW="--"; ARRAY="--"; BETA="--"; PPCO2="--"
+  LIVE="NO SIGNAL AT RENDER"; LIVE_COL="$ORANGE"
+fi
+STAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+# Field 4, not 3: the row is `ok  <slot>  <hex>  <ratio>` and field 3 is the
+# colour. Printing the hex where a ratio belongs is exactly the class of
+# hand-checked mistake this whole script exists to avoid.
+WORST=$("$REPO/ritzpah" contrast iss-cockpit 2>/dev/null | awk '/ ok | FAIL /{print $4; exit}')
+SLOTS=$("$REPO/ritzpah" contrast iss-cockpit 2>/dev/null | grep -cE '^[[:space:]]+(ok|FAIL)')
+
+BG="$THEME/backgrounds/1-orbital-night.jpg"
+[ -f "$BG" ] || { echo "run make-backgrounds-iss-cockpit first" >&2; exit 1; }
+
+# ------------------------------------------------------- base + cards
+# -gravity is needed to centre the crop, and then MUST be put back: it also
+# reanchors every subsequent -draw coordinate, so leaving it on center scatters
+# the entire panel around the middle of the image and looks like a layout bug.
+magick "$BG" -resize "${W}x${H}^" -gravity center -extent "${W}x${H}" \
+  -gravity NorthWest \
+  -fill "#020409" -draw "rectangle 0,0 $W,54" \
+  -font "$MONO" -pointsize 22 -fill "$MUTED" \
+  -draw "text 30,36 '1 2 3 4'" \
+  -fill "$INK" -draw "text 190,36 'iss cockpit'" \
+  -fill "$LIVE_COL" -draw "text $((W-620)),36 '$LIVE'" \
+  -fill "$MUTED" -draw "text $((W-300)),36 '$STAMP'" \
+  -fill "#020409dd" -stroke "$ACCENT" -strokewidth 1 \
+  -draw "roundrectangle 70,110 880,700 10,10" \
+  -stroke none -font "$MONO" -pointsize 21 \
+  -fill "$CYAN"  -draw "text 100,160 '\$ ritzpah show iss-cockpit | jq -r .kind'" \
+  -fill "$GREEN" -draw "text 100,190 'live'" \
+  -fill "$CYAN"  -draw "text 100,244 '\$ head -4 \$(omarchy-theme-dir)/cockpit.frag'" \
+  -fill "$MUTED" -draw "text 100,274 '#version 300 es'" \
+  -fill "$MUTED" -draw "text 100,300 '// Baked $STAMP.'" \
+  -fill "$MUTED" -draw "text 100,326 '// This is the FALLBACK orbit. Run ritzpahd'" \
+  -fill "$MUTED" -draw "text 100,352 '// and the real station overwrites all of it.'" \
+  -fill "$CYAN"  -draw "text 100,406 '\$ ritzpahd --print | tail -1'" \
+  -fill "$INK"   -draw "text 100,436 'conn=true  cabin=$CABIN mmHg'" \
+  -fill "$INK"   -draw "text 100,462 'array=$ARRAY V  beta=$BETA deg'" \
+  -fill "$CYAN"  -draw "text 100,516 '\$ # no timer schedules any of that.'" \
+  -fill "$CYAN"  -draw "text 100,542 '\$ # the daemon paints 64x2 pixels and the'" \
+  -fill "$CYAN"  -draw "text 100,568 '\$ # shader reads them back off the screen.'" \
+  -fill "$ACCENT" -draw "text 100,622 '\$'" \
+  -fill "$INK"   -draw "rectangle 124,606 138,626" \
+  -fill "#0d141fdd" -stroke "$ACCENT" -strokewidth 1 \
+  -draw "roundrectangle 950,300 1730,700 10,10" \
+  -stroke none -pointsize 20 -fill "$MUTED" \
+  -draw "text 985,350 'station, as of this render'" \
+  -pointsize 21 -fill "$INK" \
+  -draw "text 985,404 'cabin pressure'" -draw "text 1400,404 '$CABIN mmHg'" \
+  -draw "text 985,440 'CCAA inlet temp'" -draw "text 1400,440 '$CCAA C'" \
+  -draw "text 985,476 'crewlock pressure'" -draw "text 1400,476 '$CREW mmHg'" \
+  -draw "text 985,512 'array 1A voltage'" -draw "text 1400,512 '$ARRAY V'" \
+  -draw "text 985,548 'solar beta angle'" -draw "text 1400,548 '$BETA deg'" \
+  -draw "text 985,584 'ppCO2'" -draw "text 1400,584 '$PPCO2 mmHg'" \
+  -fill "$MUTED" \
+  -draw "text 985,632 'ink slots'" -draw "text 1400,632 '$SLOTS'" \
+  -draw "text 985,668 'worst contrast'" -draw "text 1400,668 '$WORST'" \
+  "$OUT"
+
+# ------------------------------------- the instrument panel along the bottom
+PANEL_TOP=$((H - 130))
+dials=()
+i=0
+for spec in "$CABIN 800 $CYAN" "$CCAA 40 $GREEN" "$CREW 800 $ORANGE" "$ARRAY 200 $ACCENT"; do
+  read -r val max col <<<"$spec"
+  cx=$((150 + i * 150)); cy=$((PANEL_TOP + 62)); r=40
+  ang=$(awk -v v="$val" -v m="$max" 'BEGIN{
+    if (v == "--") { f = 0.0 } else { f = v / m; if (f < 0) f = 0; if (f > 1) f = 1 }
+    print 210 - 240 * f }')
+  tx=$(awk -v cx=$cx -v r=$r -v a="$ang" 'BEGIN{printf "%d", cx + 0.86*r*cos(a*3.14159265/180)}')
+  ty=$(awk -v cy=$cy -v r=$r -v a="$ang" 'BEGIN{printf "%d", cy - 0.86*r*sin(a*3.14159265/180)}')
+  dials+=(-stroke "$col" -strokewidth 2 -fill none
+          -draw "arc $((cx-r)),$((cy-r)) $((cx+r)),$((cy+r)) 150,390"
+          -strokewidth 3 -draw "line $cx,$cy $tx,$ty")
+  i=$((i+1))
+done
+
+magick "$OUT" \
+  -fill "#020409e6" -stroke none -draw "rectangle 0,$PANEL_TOP $W,$H" \
+  -stroke "$ACCENT" -strokewidth 1 -draw "line 0,$PANEL_TOP $W,$PANEL_TOP" \
+  "${dials[@]}" \
+  -stroke "$MUTED" -strokewidth 1 -fill none \
+  -draw "rectangle 780,$((PANEL_TOP+22)) 1180,$((PANEL_TOP+104))" \
+  -draw "line 780,$((PANEL_TOP+63)) 1180,$((PANEL_TOP+63))" \
+  -stroke none -fill "$ORANGE" \
+  -draw "circle 1010,$((PANEL_TOP+48)) 1016,$((PANEL_TOP+48))" \
+  -fill "$GREEN"  -draw "circle 1300,$((PANEL_TOP+56)) 1311,$((PANEL_TOP+56))" \
+  -fill "#3a2a18" -draw "circle 1360,$((PANEL_TOP+56)) 1371,$((PANEL_TOP+56))" \
+  -fill "#3a1a18" -draw "circle 1420,$((PANEL_TOP+56)) 1431,$((PANEL_TOP+56))" \
+  -fill "$BLUE"   -draw "circle 1480,$((PANEL_TOP+56)) 1491,$((PANEL_TOP+56))" \
+  -font "$MONO" -pointsize 15 -fill "$MUTED" \
+  -draw "text 1276,$((PANEL_TOP+96)) 'LIVE'" \
+  -draw "text 1332,$((PANEL_TOP+96)) 'STALE'" \
+  -draw "text 1400,$((PANEL_TOP+96)) 'EVA'" \
+  -draw "text 1456,$((PANEL_TOP+96)) 'AOS'" \
+  -pointsize 17 -fill "$GOLD" -draw "text 1580,$((PANEL_TOP+58)) 'ritzpah'" \
+  -pointsize 15 -fill "$MUTED" -draw "text 1580,$((PANEL_TOP+82)) 'iss cockpit'" \
+  "$OUT"
+
+magick identify -format '  preview.png  %wx%h  %b\n' "$OUT"
+if [ -z "$SAMPLE" ]; then
+  echo "  NOTE: rendered with no signal -- gauges show '--', not invented values." >&2
+fi

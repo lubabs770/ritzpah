@@ -131,7 +131,12 @@ GITHUB_MARK = (
 # risking a miss, and every hit is shown with its line.
 NETWORK_PATTERN = re.compile(
     r"\b(curl|wget|nc|ssh|scp|rsync|ftp|urllib|requests\.|http\.client|socket\.|"
-    r"fetch\(|XMLHttpRequest|https?://)", re.I)
+    r"fetch\(|XMLHttpRequest|wss?://|https?://|"
+    # Rust. Added when ritzpahd arrived: the repo now ships a compiled daemon
+    # that holds a WebSocket open, and none of the patterns above would have
+    # found a single line of it.
+    r"TcpStream|TcpListener|UdpSocket|tungstenite|reqwest|rustls|ureq|hyper::|"
+    r"lightstreamer|IntoClientRequest|connect_to_env)", re.I)
 
 # Themes are allowed to ship code, and a `live` theme by definition writes
 # something. Scanning for that is the other half of the question the audit
@@ -139,11 +144,17 @@ NETWORK_PATTERN = re.compile(
 WRITE_PATTERN = re.compile(
     r"(io\.open\([^)]*[\"'](?:w|a|r\+|w\+|a\+)[\"']|open\([^)]*[\"'](?:w|a|x)b?[\"']|"
     r"\bos\.remove\b|\bos\.rename\b|\bshutil\.(?:copy|move|rmtree)|\bos\.makedirs\b|"
-    r"\brm -rf\b|\bmkdir -p\b|\bcp -r\b|\s>\s*[\"']?\$)")
+    r"\brm -rf\b|\bmkdir -p\b|\bcp -r\b|\s>\s*[\"']?\$|"
+    # Rust, for the same reason as above.
+    r"File::create|OpenOptions|fs::write|fs::remove|fs::create_dir|fs::rename)")
 
-SKIP_DIRS = {".git", "site", "node_modules", "__pycache__"}
+# `target` is Cargo's build directory. It is gitignored, but the scan walks the
+# working tree rather than the index, so without this a developer who has built
+# ritzpahd once gets forty rows of compiled dependency artifacts in the audit
+# table and the five files that actually matter get lost in them.
+SKIP_DIRS = {".git", "site", "node_modules", "__pycache__", "target"}
 DATA_SUFFIXES = {".toml", ".lua", ".json", ".md", ".png", ".jpg", ".jpeg", ".webp",
-                 ".theme", ".conf", ".frag", ".txt", ".yml", ".yaml", ""}
+                 ".theme", ".conf", ".frag", ".txt", ".yml", ".yaml", ".rs", ""}
 
 
 def repo_commit(repo):
@@ -191,6 +202,15 @@ def audit_surface(repo):
                     runtime = "Lua, run by Hyprland at every config load"
                 elif name.endswith(".frag") or name.endswith(".frag.in"):
                     runtime = "GLSL, run by the GPU on every frame"
+            # Rust source has no executable bit and no shebang, so without this
+            # the entire ritzpahd daemon -- the one thing in this repo that
+            # opens a socket -- would have been invisible to the scan. It is
+            # not built or run by installing a theme; you build and start it
+            # yourself. It is listed because it is code that ships here.
+            elif parts[0] == "ritzpahd" and name.endswith(".rs"):
+                runtime = "Rust, compiled into the optional ritzpahd daemon"
+            elif parts[0] == "ritzpahd" and name == "Cargo.toml":
+                runtime = "Cargo manifest for the optional ritzpahd daemon"
             if not (executable or shebang or runtime):
                 continue
             if os.path.splitext(name)[1] in {".png", ".jpg", ".jpeg", ".webp"}:

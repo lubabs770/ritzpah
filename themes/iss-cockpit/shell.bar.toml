@@ -1,0 +1,12 @@
+# The bar is the top of the instrument panel, so it is opaque. The canopy is
+# allowed to wash over your windows; it is not allowed to wash over the clock.
+[bar]
+background       = "#020409"
+background-alpha = 1.0
+text             = "#cfdae6"
+# Recording, alerts, updates. EMERGENCY red off the caution-and-warning panel,
+# which is the only red on a spacecraft that means drop what you are doing.
+active           = "#ff6b5e"
+scale-with-font  = true
+size-horizontal  = 26
+size-vertical    = 28
