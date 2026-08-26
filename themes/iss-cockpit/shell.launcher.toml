@@ -1,0 +1,15 @@
+# Same treatment as [menu]. The launcher is the same panel, opened for a
+# different reason.
+[launcher]
+background                 = "#020409"
+background-alpha           = 0.95
+text                       = "#cfdae6"
+border                     = "#4fd6c8"
+border-alpha               = 0.45
+scrim                      = "#04070c"
+scrim-alpha                = 0.55
+selected-background        = "#123a4a"
+selected-background-alpha  = 0.9
+selected-text              = "#f6fafd"
+selected-border            = "#4fd6c8"
+selected-border-alpha      = 1.0

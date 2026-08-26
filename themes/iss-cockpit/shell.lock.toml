@@ -1,0 +1,15 @@
+# The lock screen is the station on the night side with the cabin lights out:
+# the darkest scrim in the theme, and the only surface that gets no backlight
+# spill at all.
+[lock]
+background       = "#020409"
+background-alpha = 0.84
+text             = "#e3ebf3"
+placeholder      = "#8d9cad"
+text-error       = "#ff6b5e"
+border           = "hyprland.active-border"
+border-active    = "hyprland.active-border"
+border-error     = "#ff6b5e"
+border-alpha     = 1.0
+selection        = "#4fd6c8"
+selection-alpha  = 0.42

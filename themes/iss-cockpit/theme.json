@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "slug": "iss-cockpit",
+  "kind": "live",
+  "name": "ISS Cockpit",
+  "tagline": "A cockpit whose gauges are wired to the real International Space Station, right now.",
+  "tags": [
+    "dark",
+    "shader",
+    "live",
+    "network",
+    "daemon",
+    "space",
+    "cyan"
+  ],
+  "contrast_floor": 7.0,
+  "generator": "tools/make-backgrounds-iss-cockpit",
+  "battery": "costs",
+  "network": "ritzpahd holds one WSS to push.lightstreamer.com (public ISSLIVE adapter set, no auth, no key) and polls api.open-notify.org for ground position. The theme itself never opens a socket; the daemon is a separate opt-in binary you start yourself. Nothing is sent upstream but the TLCP subscription itself.",
+  "daemon": "ritzpahd, optional. Without it the cockpit still flies -- orbital mechanics are baked at Hyprland config load and propagated on the GPU -- but the cabin gauges hold their baked values and the panel lights its STALE annunciator.",
+  "notes": "The only theme here that talks to the network, and the boundary is unusual because it had to be: Hyprland binds a fixed compiled-in set of screen-shader uniforms (tex, time, wl_output, screen_size, v_texcoord) with no second sampler, so a data texture is not available. Instead ritzpahd paints telemetry into a 64x2 px layer-shell surface at the top-left of each output, and cockpit.frag reads those pixels out of the composited frame before painting over them. See TELEMETRY.md for the texel map, the encoding, and the three fallback cases."
+}

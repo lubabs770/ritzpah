@@ -1,0 +1,245 @@
+#!/usr/bin/env bash
+# Wallpapers for the ISS Cockpit theme.
+#
+# Every one of these is the view out of a window, drawn rather than
+# photographed: the limb of the Earth from 425 km, which is the one thing
+# every astronaut says is not conveyable and which nobody has ever managed to
+# photograph the way it looks. This does not manage it either. It does get the
+# geometry right, which is more than a gradient does.
+#
+# Requires ImageMagick 7 (`magick`, not `convert`).
+#
+# The star fields and airglow noise are seeded randomly, so EVERY RUN PRODUCES
+# A DIFFERENT SET in the same palette. The recipe is the deliverable; the exact
+# image never was. Do not hand-retouch the output -- change the script.
+#
+# Note on `set -e` here: it does NOT catch a failure inside a pipeline or a
+# subshell, and ImageMagick will happily drop a whole layer and still exit 0
+# (see the casino-carpet notes in RITZPAH_SKILL.md). So this script checks its
+# own output at the end rather than trusting exit codes. LOOK AT THE IMAGES.
+set -euo pipefail
+
+OUT="${1:-$(dirname "$0")/../themes/iss-cockpit/backgrounds}"
+W="${2:-2560}"
+H="${3:-1440}"
+mkdir -p "$OUT"
+
+command -v magick >/dev/null || { echo "need ImageMagick 7 (magick)" >&2; exit 1; }
+
+# The palette, kept in step with colors.toml by hand. If they drift, the
+# wallpapers stop belonging to the theme, which validate cannot detect.
+VOID="#04070c"
+DEEPBLUE="#0d2340"
+LIMB="#7fb0ff"
+AIRGLOW="#5ee08a"
+CYAN="#5fd8e0"
+EMBER="#ffa657"
+GOLD="#d4a96a"
+AURORA="#d99aee"
+INK="#cfdae6"
+
+# Earth's centre sits far below the frame, so the limb crossing the picture is
+# a real 6371 km circle seen from 425 km up, not a decorative arc.
+limb_cx=$((W / 2))
+
+# A star field. Magnitudes are not uniform -- most stars you can see are faint,
+# so the sizes are weighted hard toward one pixel.
+stars() {
+  local n="$1" seed="$2" out="" i x y r
+  RANDOM=$seed
+  for ((i = 0; i < n; i++)); do
+    x=$((RANDOM % W)); y=$((RANDOM % H))
+    r=$((RANDOM % 100))
+    if   ((r < 78)); then out+=" fill-opacity 0.55 circle $x,$y $((x + 1)),$y"
+    elif ((r < 95)); then out+=" fill-opacity 0.8 circle $x,$y $((x + 1)),$((y + 1))"
+    else                  out+=" fill-opacity 1.0 circle $x,$y $((x + 2)),$y"
+    fi
+  done
+  printf 'fill white %s' "$out"
+}
+
+# ---------------------------------------------------------------- 1. night
+# The night side. No sun on the limb at all; the only things lit are the
+# airglow layer at 90 km and whatever is switched on in the cities below it.
+echo "  1-orbital-night"
+limb_r=$((H * 5 / 2))
+limb_cy=$((H + limb_r - H / 5))
+
+# City lights. Clustered, not scattered: people live next to other people, so
+# the lights come in clumps with dark between them. Drawn only where the disc
+# actually is, which is why each candidate is tested against the limb radius.
+cities=()
+RANDOM=8080
+for ((c = 0; c < 46; c++)); do
+  ccx=$((RANDOM % W)); ccy=$((H - (RANDOM % (H / 3))))
+  for ((m = 0; m < 14; m++)); do
+    px=$((ccx + (RANDOM % 130) - 65)); py=$((ccy + (RANDOM % 46) - 23))
+    ((px < 0 || px >= W || py < 0 || py >= H)) && continue
+    dx=$((px - limb_cx)); dy=$((py - limb_cy))
+    (( dx * dx + dy * dy > limb_r * limb_r )) && continue
+    cities+=(-fill "#ffb35933" -draw "point $px,$py")
+  done
+done
+magick -size "${W}x${H}" "xc:$VOID" \
+  -draw "$(stars 900 12345)" \
+  \( -size "${W}x${H}" "xc:none" \
+     -fill "$DEEPBLUE" -draw "circle $limb_cx,$limb_cy $limb_cx,$((limb_cy - limb_r))" \
+     -blur 0x2 \) -compose over -composite \
+  \( -size "${W}x${H}" "xc:none" "${cities[@]}" \
+     -blur 0x1 \) -compose over -composite \
+  \( -size "${W}x${H}" "xc:black" \
+     -stroke "$AIRGLOW" -strokewidth 3 -fill none \
+     -draw "circle $limb_cx,$limb_cy $limb_cx,$((limb_cy - limb_r))" \
+     -blur 0x18 -evaluate multiply 2.4 \) -compose screen -composite \
+  \( -size "${W}x${H}" "xc:black" \
+     -stroke "$CYAN" -strokewidth 1 -fill none \
+     -draw "circle $limb_cx,$limb_cy $limb_cx,$((limb_cy - limb_r))" \
+     -blur 0x3 \) -compose screen -composite \
+  -attenuate 0.55 +noise Gaussian -blur 0x0.4 \
+  -modulate 100,118,100 \
+  "$OUT/1-orbital-night.jpg"
+
+# ------------------------------------------------------------ 2. terminator
+# Orbital sunrise: forty-five seconds of it, sixteen times a day. The ember
+# band is the whole atmosphere edge-on, which is why it is the one colour
+# nobody believes.
+echo "  2-terminator"
+magick -size "${W}x${H}" "xc:$VOID" \
+  -draw "$(stars 620 777)" \
+  \( -size "${W}x${H}" "xc:none" \
+     -fill "$DEEPBLUE" -draw "circle $limb_cx,$limb_cy $limb_cx,$((limb_cy - limb_r))" \) \
+     -compose over -composite \
+  \( -size "${W}x${H}" "xc:black" \
+     -stroke "$EMBER" -strokewidth 4 -fill none \
+     -draw "circle $limb_cx,$limb_cy $limb_cx,$((limb_cy - limb_r))" \
+     -blur 0x22 -evaluate multiply 2.2 \) -compose screen -composite \
+  \( -size "${W}x${H}" "xc:black" \
+     -stroke "$LIMB" -strokewidth 2 -fill none \
+     -draw "circle $limb_cx,$((limb_cy + 14)) $limb_cx,$((limb_cy + 14 - limb_r))" \
+     -blur 0x9 \) -compose screen -composite \
+  \( -size "${W}x${H}" "gradient:none-black" -evaluate multiply 0.85 \) \
+     -compose multiply -composite \
+  -attenuate 0.4 +noise Gaussian \
+  "$OUT/2-terminator.jpg"
+
+# ---------------------------------------------------------------- 3. cupola
+# The Cupola: one round window and six trapezoids around it. Drawn as the
+# structure sees it -- you are inside, it is dark in here, and the only light
+# is coming in. Shutters open.
+echo "  3-cupola"
+cx=$((W / 2)); cy=$((H / 2))
+inner=$((H * 30 / 100))
+outer=$((H * 46 / 100))
+frame_args=()
+for k in 0 1 2 3 4 5; do
+  a0=$(awk "BEGIN{print $k*60 - 30}")
+  a1=$(awk "BEGIN{print $k*60 + 30}")
+  read -r x0 y0 x1 y1 x2 y2 x3 y3 <<<"$(awk -v cx=$cx -v cy=$cy -v ri=$inner -v ro=$outer -v a0=$a0 -v a1=$a1 \
+    'BEGIN{d=atan2(0,-1)/180;
+     printf "%d %d %d %d %d %d %d %d",
+       cx+ri*cos(a0*d), cy+ri*sin(a0*d), cx+ro*cos(a0*d), cy+ro*sin(a0*d),
+       cx+ro*cos(a1*d), cy+ro*sin(a1*d), cx+ri*cos(a1*d), cy+ri*sin(a1*d)}')"
+  # A path, not a polyline: `stroke-linecap round` inlined before a polyline on
+  # the same MVG line breaks the ImageMagick 7 parser outright.
+  frame_args+=(-draw "stroke-linecap round path 'M $x0,$y0 L $x1,$y1 L $x2,$y2 L $x3,$y3 Z'")
+done
+magick -size "${W}x${H}" "xc:$VOID" \
+  -draw "$(stars 700 99)" \
+  \( -size "${W}x${H}" "xc:none" \
+     -fill "$DEEPBLUE" -draw "circle $limb_cx,$limb_cy $limb_cx,$((limb_cy - limb_r))" \) \
+     -compose over -composite \
+  \( -size "${W}x${H}" "xc:black" \
+     -stroke "$AIRGLOW" -strokewidth 3 -fill none \
+     -draw "circle $limb_cx,$limb_cy $limb_cx,$((limb_cy - limb_r))" \
+     -blur 0x16 -evaluate multiply 2.0 \) -compose screen -composite \
+  -fill "#02040733" -stroke "$GOLD" -strokewidth 3 "${frame_args[@]}" \
+  -fill none -stroke "$GOLD" -strokewidth 4 \
+  -draw "circle $cx,$cy $cx,$((cy - inner))" \
+  -stroke "$INK" -strokewidth 1 -fill none \
+  -draw "circle $cx,$cy $cx,$((cy - inner + 6))" \
+  -blur 0x0.3 \
+  "$OUT/3-cupola.jpg"
+
+# ------------------------------------------------------------ 4. beta angle
+# The orbit plane against the sun line: the angle between them IS the beta
+# angle, and when it goes over about 70 degrees the station stops entering
+# eclipse at all and the thermal people start having opinions.
+#
+# The parts are LABELLED, not measured. An earlier version printed "BETA 22.6"
+# here, which was true at the moment it was generated and a lie by the
+# following afternoon -- a hand-typed measurement baked into a static image is
+# exactly the failure the repo already has a rule about. The live number is on
+# the panel, where it is read from the station.
+echo "  4-beta-angle"
+r_orbit=$((H * 34 / 100))
+r_earth=$((H * 13 / 100))
+# Build the range rings as a real argv array. Interpolating them through an
+# unquoted command substitution and escaping the spaces by hand is how you get
+# `non-conforming drawing primitive definition` -- the args get re-split in the
+# wrong places and ImageMagick sees half a primitive.
+grid=()
+for g in 1 2 3 4 5 6 7 8; do
+  grid+=(-draw "circle $cx,$cy $cx,$((cy - g * H / 18))")
+done
+magick -size "${W}x${H}" "xc:$VOID" \
+  -draw "$(stars 380 4242)" \
+  -stroke "$DEEPBLUE" -strokewidth 1 -fill none "${grid[@]}" \
+  -fill "$DEEPBLUE" -stroke "$LIMB" -strokewidth 2 \
+  -draw "circle $cx,$cy $cx,$((cy - r_earth))" \
+  -fill none -stroke "$CYAN" -strokewidth 2 \
+  -draw "ellipse $cx,$cy $r_orbit,$((r_orbit * 32 / 100)) 0,360" \
+  -stroke "$EMBER" -strokewidth 2 \
+  -draw "stroke-dasharray 14 10 line $((cx - W / 2)),$((cy - H / 5)) $((cx + W / 2)),$((cy + H / 5))" \
+  -stroke "$AIRGLOW" -strokewidth 3 -fill "$AIRGLOW" \
+  -draw "circle $((cx + r_orbit)),$cy $((cx + r_orbit + 7)),$cy" \
+  -stroke none -fill "$INK" -pointsize 22 \
+  -draw "text $((cx - r_orbit)),$((cy + r_orbit / 2 + 120)) 'ORBIT PLANE'" \
+  -fill "$EMBER" -draw "text $((cx + r_orbit / 2)),$((cy - r_orbit / 2 - 40)) 'SUN LINE'" \
+  -fill "$AIRGLOW" -draw "text $((cx + r_orbit + 20)),$((cy - 18)) 'ISS'" \
+  -blur 0x0.3 \
+  "$OUT/4-beta-angle.jpg"
+
+# ---------------------------------------------------------------- 5. aurora
+# Aurora australis, which is what is under you for a good part of a 51.6 degree
+# orbit and which from above is not a curtain but a ribbon lying on the planet.
+echo "  5-aurora"
+# Same array treatment as the range rings above, and for the same reason.
+ribbons=()
+for k in 0 1 2 3 4 5 6; do
+  off=$((k * 11 - 33))
+  ribbons+=(-draw "circle $limb_cx,$((limb_cy + off)) $limb_cx,$((limb_cy + off - limb_r + 26))")
+done
+magick -size "${W}x${H}" "xc:$VOID" \
+  -draw "$(stars 800 31337)" \
+  \( -size "${W}x${H}" "xc:none" \
+     -fill "$DEEPBLUE" -draw "circle $limb_cx,$limb_cy $limb_cx,$((limb_cy - limb_r))" \) \
+     -compose over -composite \
+  \( -size "${W}x${H}" "xc:black" \
+     -stroke "$AURORA" -strokewidth 2 -fill none "${ribbons[@]}" \
+     -blur 0x14 -evaluate multiply 1.9 \) -compose screen -composite \
+  \( -size "${W}x${H}" "xc:black" \
+     -stroke "$AIRGLOW" -strokewidth 2 -fill none \
+     -draw "circle $limb_cx,$((limb_cy - 6)) $limb_cx,$((limb_cy - 6 - limb_r))" \
+     -blur 0x10 -evaluate multiply 1.6 \) -compose screen -composite \
+  -attenuate 0.5 +noise Gaussian -blur 0x0.4 \
+  -modulate 100,124,100 \
+  "$OUT/5-aurora.jpg"
+
+# Never trust exit 0 from a wallpaper generator. Check the files exist, are not
+# trivially small, and are not a single flat colour (which is what a dropped
+# layer looks like and what ImageMagick returns success for).
+echo
+fail=0
+for f in "$OUT"/*.jpg; do
+  bytes=$(stat -c%s "$f")
+  colors=$(magick "$f" -format %k info:)
+  printf '  %-28s %7s bytes  %6s colours\n' "$(basename "$f")" "$bytes" "$colors"
+  if [ "$bytes" -lt 40000 ] || [ "$colors" -lt 500 ]; then
+    echo "    ^^ suspicious: looks like a dropped layer or a flat fill" >&2
+    fail=1
+  fi
+  if [ "$bytes" -gt 2000000 ]; then
+    echo "    ^^ over the 2 MB validate warns at" >&2
+  fi
+done
+exit $fail

@@ -1,0 +1,28 @@
+[package]
+name = "ritzpahd"
+version = "0.1.0"
+edition = "2021"
+description = "Streams live ISS telemetry into 64x2 pixels of your screen, for the ritzpah ISS Cockpit theme to read back out of the composited frame."
+license = "MIT"
+repository = "https://github.com/lubabs770/ritzpah"
+
+[dependencies]
+# One socket, one hand-rolled text protocol. The sync client is the right size
+# for this: there is no concurrency to manage, just a blocking read loop on its
+# own thread. No async runtime is pulled in anywhere in this binary.
+tungstenite = { version = "0.30", features = ["rustls-tls-native-roots"] }
+# tungstenite pulls rustls but selects no crypto provider, and rustls refuses to
+# guess. Naming `ring` here is what makes the TLS handshake possible at all;
+# without it the first connect panics inside rustls rather than failing.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+
+# The layer-shell surface the telemetry is painted into.
+smithay-client-toolkit = "0.21"
+wayland-client = "0.31"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
